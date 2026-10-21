@@ -1,0 +1,12 @@
+MMSA
+torch
+transformers
+accelerate
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+seaborn
+tqdm
+jupyter
