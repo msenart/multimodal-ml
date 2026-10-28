@@ -218,3 +218,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Dataset feature files (large, not ours to redistribute; see data/README.md)
+data/**
+!data/README.md
+!data/*/
+!data/*/*/
+
+# Training checkpoints
+checkpoints/
