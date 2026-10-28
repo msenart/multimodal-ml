@@ -22,7 +22,9 @@ class ConcatMLP(MultimodalModel):
 
     Not a serious baseline — exists purely so the full pipeline (data loading,
     batching, forward/loss, metrics, checkpointing) can be exercised end-to-end
-    before any real architecture has been written. See scripts/train_baseline.py.
+    before any real architecture has been written. Trains via the default
+    routine in multimodal_ml.training.default_routine — run with
+    `python -m multimodal_ml --dataset mosi --model baseline`.
     """
 
     def __init__(self, config: DatasetConfig, hidden_dim: int = 128):
