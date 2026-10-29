@@ -7,7 +7,9 @@ subclass) and registering it in `models/__init__.py`'s `MODEL_REGISTRY` — then
 `--model your_model` picks it up here automatically. The default training
 routine lives in `training.py`; if your model needs different training
 behavior, override `training_routine` on your own model class instead of
-editing anything shared (see models/base.py).
+editing anything shared. Likewise, if your model needs its own hyperparameters
+(e.g. `--hidden-dim`), override `add_cli_args`/`from_args` on your own model
+class instead of editing the shared parser below (see models/base.py).
 """
 
 from __future__ import annotations
@@ -21,7 +23,19 @@ from multimodal_ml.models import MODEL_REGISTRY
 from multimodal_ml.seed import get_device, set_seed
 
 
+def _peek_model_name() -> str:
+    """First-pass parse of just --model, so we know which model's add_cli_args
+    to merge into the real parser below (its own flags, --help, and the
+    required --dataset check all happen on that second, full parse)."""
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--model", choices=list(MODEL_REGISTRY), default="baseline")
+    known_args, _ = pre_parser.parse_known_args()
+    return known_args.model
+
+
 def parse_args() -> argparse.Namespace:
+    model_cls = MODEL_REGISTRY[_peek_model_name()]
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", choices=["mosi", "sims"], required=True)
     parser.add_argument("--model", choices=list(MODEL_REGISTRY), default="baseline")
@@ -32,6 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
+    model_cls.add_cli_args(parser)
     return parser.parse_args()
 
 
@@ -43,7 +58,7 @@ def main() -> None:
     loaders = make_dataloaders(config, args.batch_size)
 
     model_cls = MODEL_REGISTRY[args.model]
-    model = model_cls(config).to(device)
+    model = model_cls.from_args(config, args).to(device)
 
     test_metrics = model.training_routine(loaders, device, args)
     print(f"test: {test_metrics}")

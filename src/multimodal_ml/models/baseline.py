@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+
 import torch
 from torch import Tensor, nn
 
@@ -35,6 +37,14 @@ class ConcatMLP(MultimodalModel):
             nn.ReLU(),
             nn.Linear(hidden_dim, 1),
         )
+
+    @classmethod
+    def add_cli_args(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--hidden-dim", type=int, default=128)
+
+    @classmethod
+    def from_args(cls, config: DatasetConfig, args: argparse.Namespace) -> "ConcatMLP":
+        return cls(config, hidden_dim=args.hidden_dim)
 
     def forward(self, batch: Batch) -> Tensor:
         text_repr = batch.text.mean(dim=1)

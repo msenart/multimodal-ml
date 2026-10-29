@@ -30,6 +30,31 @@ class MultimodalModel(nn.Module, ABC):
     @abstractmethod
     def forward(self, batch: Batch) -> Tensor: ...
 
+    @classmethod
+    def add_cli_args(cls, parser: argparse.ArgumentParser) -> None:
+        """Override to add this model's own CLI flags, e.g.:
+
+            parser.add_argument("--hidden-dim", type=int, default=128)
+
+        Called once, only for the model selected via `--model` — adding a flag
+        here never affects other models or requires editing __main__.py. Default:
+        no extra flags. Avoid reusing a flag already defined in __main__.py's
+        parse_args (--dataset, --model, --epochs, --batch-size, --lr, --patience,
+        --seed, --device, --checkpoint-dir) — argparse raises if you do.
+        """
+        return
+
+    @classmethod
+    def from_args(cls, config: DatasetConfig, args: argparse.Namespace) -> "MultimodalModel":
+        """Override alongside add_cli_args if __init__ needs anything beyond
+        `config` — read the extra values off `args` and pass them through, e.g.:
+
+            return cls(config, hidden_dim=args.hidden_dim)
+
+        Default: cls(config).
+        """
+        return cls(config)
+
     def training_routine(
         self, loaders: "Loaders", device: torch.device, args: argparse.Namespace
     ) -> dict[str, float]:
