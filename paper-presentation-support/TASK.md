@@ -11,6 +11,8 @@ Each team selects one paper from the curated multimodal machine learning reading
 | Q&A and Discussion | 10% | Responds accurately to questions and leads a substantive technical discussion. |
 | Team Participation | 5% | All team members demonstrate meaningful participation and understanding. |
 
+18 min presentation + 6 min Q&A/discussion
+Approximately 25 min per team including transition.
 
 - Google Docs : https://docs.google.com/document/d/1io_Jnyma8lSN9lAvfc0AAUm38AnEUaxPoliAzqpk44o/edit?usp=sharing
 
