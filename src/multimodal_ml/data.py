@@ -12,6 +12,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
 from multimodal_ml.config import DatasetConfig
+from multimodal_ml.transforms import FeatureTransform
 
 Split = Literal["train", "valid", "test"]
 
@@ -29,6 +30,10 @@ class MissingDataFileError(FileNotFoundError):
 def _load_pickle(pkl_path: Path) -> dict:
     with open(pkl_path, "rb") as f:
         return pickle.load(f)
+
+
+def _lengths(split_data: dict, key: str, array: np.ndarray) -> np.ndarray:
+    return np.asarray(split_data.get(key, [array.shape[1]] * len(array)), dtype=np.int64)
 
 
 def _load_split(config: DatasetConfig, split: Split) -> dict:
@@ -67,9 +72,13 @@ class MultimodalDataset(Dataset):
     per dataset, so samples need no further padding to be batched. audio_lengths/
     vision_lengths record each sample's true (unpadded) length, so a model can mask
     out the padding itself (e.g. when mean-pooling over time).
+
+    `transform` (a *fitted* FeatureTransform, normally the model's own
+    `model.transform`) is applied once to the feature arrays at construction;
+    None leaves the raw features untouched.
     """
 
-    def __init__(self, config: DatasetConfig, split: Split):
+    def __init__(self, config: DatasetConfig, split: Split, transform: FeatureTransform | None = None):
         split_data = _load_split(config, split)
         self.text = np.asarray(split_data["text"], dtype=np.float32)
         self.audio = np.asarray(split_data["audio"], dtype=np.float32)
@@ -77,13 +86,13 @@ class MultimodalDataset(Dataset):
         self.labels = np.asarray(split_data["regression_labels"], dtype=np.float32)
         self.ids = [str(i) for i in split_data["id"]]
 
-        n = len(self.labels)
-        self.audio_lengths = np.asarray(
-            split_data.get("audio_lengths", [self.audio.shape[1]] * n), dtype=np.int64
-        )
-        self.vision_lengths = np.asarray(
-            split_data.get("vision_lengths", [self.vision.shape[1]] * n), dtype=np.int64
-        )
+        self.audio_lengths = _lengths(split_data, "audio_lengths", self.audio)
+        self.vision_lengths = _lengths(split_data, "vision_lengths", self.vision)
+
+        if transform is not None:
+            self.text, self.audio, self.vision = transform(
+                self.text, self.audio, self.vision, self.audio_lengths, self.vision_lengths
+            )
 
     def __len__(self) -> int:
         return len(self.labels)
@@ -113,11 +122,20 @@ def collate_fn(samples: list[dict]) -> Batch:
 
 
 def make_dataloaders(
-    config: DatasetConfig, batch_size: int, num_workers: int = 0
+    config: DatasetConfig,
+    batch_size: int,
+    num_workers: int = 0,
+    transform: FeatureTransform | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
+    """Train/valid/test loaders. `transform` is fit on the raw train split, then
+    applied to all three splits."""
+    if transform is not None:
+        raw = MultimodalDataset(config, "train")
+        transform.fit(raw.text, raw.audio, raw.vision, raw.audio_lengths, raw.vision_lengths)
+        del raw
     loaders = []
     for split, shuffle in (("train", True), ("valid", False), ("test", False)):
-        dataset = MultimodalDataset(config, split)
+        dataset = MultimodalDataset(config, split, transform)
         loaders.append(
             DataLoader(
                 dataset,

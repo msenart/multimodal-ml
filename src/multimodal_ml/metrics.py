@@ -36,9 +36,15 @@ def compute_regression_metrics(
     preds = np.asarray(preds, dtype=np.float64).reshape(-1)
     labels = np.asarray(labels, dtype=np.float64).reshape(-1)
 
+    # Pearson is undefined when either side is constant (zero std): report 0.0 instead of nan.
+    if preds.size < 2 or preds.std() == 0 or labels.std() == 0:
+        corr = 0.0
+    else:
+        corr = float(np.corrcoef(preds, labels)[0, 1])
+
     metrics = {
         "mae": float(np.mean(np.abs(preds - labels))),
-        "corr": float(np.corrcoef(preds, labels)[0, 1]),
+        "corr": corr,
         "acc5": _multiclass_acc(preds, labels, config.label_low, config.label_high, 5),
     }
     if config.has_acc7:

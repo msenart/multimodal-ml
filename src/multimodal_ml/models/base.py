@@ -9,6 +9,7 @@ from torch import Tensor, nn
 
 from multimodal_ml.config import DatasetConfig
 from multimodal_ml.data import Batch
+from multimodal_ml.transforms import FeatureTransform, Standardize
 
 if TYPE_CHECKING:
     from multimodal_ml.training import Loaders
@@ -18,7 +19,8 @@ class MultimodalModel(nn.Module, ABC):
     """Contract for a model architecture that plugs into this project's pipeline.
 
     Subclass this, implement `__init__(self, config)` (read `config.text_dim`,
-    `config.audio_dim`, `config.vision_dim` instead of hardcoding dimensions) and
+    `config.audio_dim`, `config.vision_dim`, and the per-modality time lengths
+    `config.text_len`, `config.audio_len`, `config.vision_len`, instead of hardcoding dimensions) and
     `forward(self, batch) -> Tensor` returning shape (B,) raw-scale predictions on
     the dataset's label scale.
     """
@@ -26,6 +28,9 @@ class MultimodalModel(nn.Module, ABC):
     def __init__(self, config: DatasetConfig):
         super().__init__()
         self.config = config
+        # Input transform applied (fit on train) by the dataloaders. Override in
+        # your __init__ (e.g. a different FeatureTransform) or set None for raw features.
+        self.transform: FeatureTransform | None = Standardize()
 
     @abstractmethod
     def forward(self, batch: Batch) -> Tensor: ...

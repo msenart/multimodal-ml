@@ -196,3 +196,75 @@ def default_routine(
     print_metrics_table("Test results (best checkpoint)", test_metrics)
     logger.info("test | %s", format_metrics(test_metrics))
     return test_metrics
+
+def mmtransformer_routine(
+    model: "MultimodalModel", loaders: Loaders, device: torch.device, args: argparse.Namespace
+) -> dict[str, float]:
+    """Standard MSE-regression train/validate/early-stop/test loop.
+
+    Shows a tqdm bar per epoch (live loss), prints a validation summary after each
+    epoch, a metrics table for the test set, and logs everything to
+    `<checkpoint_dir>/logs/<dataset>_<model>_<timestamp>.log`.
+    """
+    train_loader, valid_loader, test_loader = loaders
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    stopper = EarlyStopper(patience=args.patience, mode="min")
+    checkpoint_path = args.checkpoint_dir / f"{args.dataset}_{args.model}_best.pt"
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = args.checkpoint_dir / "logs" / f"{args.dataset}_{args.model}_{stamp}.log"
+    setup_logging(log_path)
+    say(f"Logging to {log_path}")
+    print_run_summary(model, loaders, device, args)
+
+    best_mae = float("inf")
+    for epoch in range(args.epochs):
+        model.train()
+        start = time.perf_counter()
+        total_loss, n_seen = 0.0, 0
+        bar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{args.epochs}", dynamic_ncols=True)
+        for batch in bar:
+            batch = batch.to(device)
+            preds = model(batch)
+            loss = F.mse_loss(preds, batch.labels)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            n = batch.labels.numel()
+            total_loss += loss.item() * n
+            n_seen += n
+            bar.set_postfix(loss=f"{loss.item():.4f}", avg=f"{total_loss / n_seen:.4f}")
+        train_loss = total_loss / max(n_seen, 1)
+
+        val_metrics = evaluate(model, valid_loader, device, desc="validation")
+        elapsed = time.perf_counter() - start
+
+        should_stop = stopper.step(val_metrics["mae"])
+        marker = ""
+        if stopper.is_best:
+            save_checkpoint(checkpoint_path, model, epoch, val_metrics["mae"])
+            best_mae = val_metrics["mae"]
+            marker = "  * new best, checkpoint saved"
+
+        say(
+            f"Epoch {epoch + 1}/{args.epochs} | {elapsed:.1f}s | train_loss={train_loss:.4f}"
+            f"\n  val: {format_metrics(val_metrics)}{marker}"
+        )
+        logger.info(
+            "epoch %d | time %.1fs | train_loss %.5f | val %s%s",
+            epoch + 1, elapsed, train_loss, format_metrics(val_metrics), marker,
+        )
+
+        # if should_stop:
+        #     say(f"Early stopping at epoch {epoch + 1} (best val mae={best_mae:.4f})")
+        #     logger.info("early stopping at epoch %d (best val mae %.5f)", epoch + 1, best_mae)
+        #     break
+
+    load_checkpoint(checkpoint_path, model)
+    test_metrics = evaluate(model, test_loader, device, desc="test")
+    print_metrics_table("Test results (best checkpoint)", test_metrics)
+    logger.info("test | %s", format_metrics(test_metrics))
+    return test_metrics

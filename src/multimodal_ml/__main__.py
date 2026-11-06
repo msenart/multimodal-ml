@@ -55,10 +55,10 @@ def main() -> None:
     set_seed(args.seed)
     device = get_device(args.device)
     config = get_dataset_config(args.dataset)
-    loaders = make_dataloaders(config, args.batch_size)
 
     model_cls = MODEL_REGISTRY[args.model]
     model = model_cls.from_args(config, args).to(device)
+    loaders = make_dataloaders(config, args.batch_size, transform=model.transform)
 
     test_metrics = model.training_routine(loaders, device, args)
     print(f"test: {test_metrics}")

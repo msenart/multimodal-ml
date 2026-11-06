@@ -11,6 +11,9 @@ class DatasetConfig:
     text_dim: int
     audio_dim: int
     vision_dim: int
+    text_len: int  # padded time length per modality (unaligned data: differs per modality)
+    audio_len: int
+    vision_len: int
     label_low: float
     label_high: float
     has_acc7: bool
@@ -24,6 +27,9 @@ DATASET_REGISTRY: dict[str, DatasetConfig] = {
         text_dim=768,
         audio_dim=5,
         vision_dim=20,
+        text_len=50,
+        audio_len=375,
+        vision_len=500,
         label_low=-3.0,
         label_high=3.0,
         has_acc7=True,
@@ -35,6 +41,9 @@ DATASET_REGISTRY: dict[str, DatasetConfig] = {
         text_dim=768,
         audio_dim=33,
         vision_dim=709,
+        text_len=39,
+        audio_len=400,
+        vision_len=55,
         label_low=-1.0,
         label_high=1.0,
         has_acc7=False,
