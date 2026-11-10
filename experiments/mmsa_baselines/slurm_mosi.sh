@@ -7,11 +7,11 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --gres=gpu:1
 #SBATCH -t 00:30:00
-#SBATCH -o %j.out
-#SBATCH -e %j.err
+#SBATCH -o ~/logs/%j.out
+#SBATCH -e ~/logs/%j.err
 
 module load miniconda3/24.3.0
 source activate mmsa
 export HF_ENDPOINT=https://hf-mirror.com
-cd ~/mmsa_project
+cd ~/multimodal-ml/experiments/mmsa_baselines
 python run_mosi.py
