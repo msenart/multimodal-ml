@@ -1,0 +1,2 @@
+dataset,model,variant,source,acc2,acc2_std,f1,f1_std,mae,mae_std,corr,corr_std,seeds,by,date,notes
+mosi,lf_dnn,TAV,mmsa,75.36,0.0,75.41,0.0,99.86,0.0,64.6,0.0,1111,oliver,2026-11-11,
