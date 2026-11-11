@@ -1,2 +1,5 @@
 dataset,model,variant,source,acc2,acc2_std,f1,f1_std,mae,mae_std,corr,corr_std,seeds,by,date,notes
 mosi,lf_dnn,TAV,mmsa,75.36,0.0,75.41,0.0,99.86,0.0,64.6,0.0,1111,oliver,2026-11-11,
+
+sims,text_only,T,ours,73.00,0.91,71.96,1.02,43.71,0.24,59.73,0.36,"42;1111;2024;3407;5201",inspiration0821,2026-11-11,"Mean Pooling; L1 Loss; Dropout=0.3/0.2; acc2/f1 use Has0"
+sims,text_only,T,ours,73.70,0.72,72.69,0.87,43.17,0.19,60.52,0.21,"42;1111;2024;3407;5201",inspiration0821,2026-11-11,"Mean Pooling; L1 Loss; Dropout=0.4/0.3; acc2/f1 use Has0"
