@@ -1,10 +1,12 @@
 from multimodal_ml.models.base import MultimodalModel
 from multimodal_ml.models.baseline import ConcatMLP
 from multimodal_ml.models.transformer import MMTransformer
+from multimodal_ml.models.ogm_ge import OGMGE
 
 MODEL_REGISTRY: dict[str, type[MultimodalModel]] = {
     "baseline": ConcatMLP,
-    "transformer" : MMTransformer
+    "transformer" : MMTransformer,
+    "ogm_ge": OGMGE,
 }
 """Models selectable via `python -m multimodal_ml --model <name>`.
 
