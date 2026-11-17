@@ -6,6 +6,9 @@ Adapted to multimodal sentiment *regression* (MOSI) and to three modalities
   - Contribution score: s_i^u = exp(-|pred_i^u - y_i|) instead of the softmax
     probability of the ground-truth class (regression has no classes). The batch
     score S^u = sum_i s_i^u.
+  - Modality prediction: pred^u = W^u h^u + b / 3, the linear term of modality u in
+    the joint output plus an equal share of the bias, so that sum_u pred^u equals
+    the fused prediction exactly.
   - Discrepancy ratio: rho^u = S^u / mean_{v != u} S^v (paper: two modalities,
     rho^a = 1 / rho^v).
   - Gradient noise (Generalization Enhancement): the covariance of the mini-batch
@@ -15,12 +18,13 @@ Adapted to multimodal sentiment *regression* (MOSI) and to three modalities
     the Adam used by the default routine. Adam is invariant to a constant gradient
     rescaling, so modulation would have almost no effect with it.
 
-Structure:
-  - one encoder per modality (mean-pool over time, then Linear+ReLU)
-  - one unimodal head per modality (used to measure each modality's contribution)
-  - one fusion head on the concatenated features (the prediction we report)
-  - the training loop adds the unimodal losses, then modulates the encoders'
-    gradients and injects GE noise before the optimizer step.
+Structure (paper eq. 1-2):
+  - one encoder per modality (mean-pool over time, then Linear+ReLU) giving h^u
+  - one linear classifier on the concatenation [h^text; h^audio; h^vision]; its
+    weight splits into blocks W^u, so the output decomposes per modality
+  - the loss is the MSE of the fused prediction only (no auxiliary heads)
+  - before the optimizer step, the encoders' gradients are modulated and GE noise
+    is injected.
 """
 
 from __future__ import annotations
@@ -64,17 +68,14 @@ class OGMGE(MultimodalModel):
     def __init__(self, config: DatasetConfig, hidden_dim: int = 128, alpha: float = 0.5):
         super().__init__(config)
         dims = {"text": config.text_dim, "audio": config.audio_dim, "vision": config.vision_dim}
+        self.hidden_dim = hidden_dim
         self.alpha = alpha  # modulation strength, paper's α in [0, 1]
 
         self.encoders = nn.ModuleDict(
             {m: nn.Sequential(nn.Linear(d, hidden_dim), nn.ReLU()) for m, d in dims.items()}
         )
-        self.unimodal_heads = nn.ModuleDict({m: nn.Linear(hidden_dim, 1) for m in MODALITIES})
-        self.fusion = nn.Sequential(
-            nn.Linear(hidden_dim * len(MODALITIES), hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1),
-        )
+        # Linear classifier on the concatenation (paper eq. 1): f = W^a h^a + W^v h^v + b.
+        self.classifier = nn.Linear(hidden_dim * len(MODALITIES), 1)
 
         # Non-registered state (not part of the checkpoint): per-parameter EMA of the
         # mini-batch gradient mean and variance, and the last modulation coefficients.
@@ -98,25 +99,34 @@ class OGMGE(MultimodalModel):
         }
         return {m: self.encoders[m](pooled[m]) for m in MODALITIES}
 
-    def forward_with_unimodal(self, batch: Batch) -> tuple[Tensor, dict[str, Tensor]]:
-        """Fused prediction (B,) plus one unimodal prediction (B,) per modality."""
+    def forward_decomposed(self, batch: Batch) -> tuple[Tensor, dict[str, Tensor]]:
+        """Fused prediction (B,) and one per-modality prediction (B,) per modality.
+
+        The per-modality predictions are the linear terms W^u h^u of the joint output,
+        with the bias split equally, so they sum to the fused prediction.
+        """
         feats = self.encode(batch)
-        fused = self.fusion(torch.cat([feats[m] for m in MODALITIES], dim=-1)).squeeze(-1)
-        unimodal = {m: self.unimodal_heads[m](feats[m]).squeeze(-1) for m in MODALITIES}
-        return fused, unimodal
+        weight = self.classifier.weight.view(-1)  # (3 * hidden,)
+        bias_share = self.classifier.bias / len(MODALITIES)
+        contrib: dict[str, Tensor] = {}
+        for i, m in enumerate(MODALITIES):
+            w_m = weight[i * self.hidden_dim : (i + 1) * self.hidden_dim]
+            contrib[m] = feats[m] @ w_m + bias_share
+        fused = sum(contrib.values())
+        return fused, contrib
 
     def forward(self, batch: Batch) -> Tensor:
-        fused, _ = self.forward_with_unimodal(batch)
-        return fused
+        feats = self.encode(batch)
+        return self.classifier(torch.cat([feats[m] for m in MODALITIES], dim=-1)).squeeze(-1)
 
     @torch.no_grad()
-    def unimodal_scores(self, unimodal: dict[str, Tensor], labels: Tensor) -> dict[str, Tensor]:
+    def contribution_scores(self, contrib: dict[str, Tensor], labels: Tensor) -> dict[str, Tensor]:
         """Batch contribution score S^u = sum_i exp(-|pred_i^u - y_i|) per modality.
 
-        Closer unimodal predictions give a score nearer 1, so a larger S^u means the
+        Closer per-modality predictions give a score nearer 1, so a larger S^u means the
         modality currently contributes more to the objective.
         """
-        return {m: torch.exp(-(unimodal[m] - labels).abs()).sum() for m in MODALITIES}
+        return {m: torch.exp(-(contrib[m] - labels).abs()).sum() for m in MODALITIES}
 
     @torch.no_grad()
     def modulate_gradients(self, sums: dict[str, Tensor]) -> None:
@@ -151,7 +161,7 @@ class OGMGE(MultimodalModel):
         self, loaders: "Loaders", device: torch.device, args: argparse.Namespace
     ) -> dict[str, float]:
         """Same train/validate/early-stop/test loop as the default routine, plus:
-        unimodal auxiliary losses, OGM-GE gradient modulation, and SGD."""
+        OGM-GE gradient modulation with GE noise, and SGD."""
         train_loader, valid_loader, test_loader = loaders
 
         optimizer = torch.optim.SGD(
@@ -175,14 +185,12 @@ class OGMGE(MultimodalModel):
             n_batches = 0
             for batch in train_loader:
                 batch = batch.to(device)
-                fused, unimodal = self.forward_with_unimodal(batch)
+                fused, contrib = self.forward_decomposed(batch)
                 loss = F.mse_loss(fused, batch.labels)
-                for m in MODALITIES:
-                    loss = loss + F.mse_loss(unimodal[m], batch.labels)
 
                 optimizer.zero_grad()
                 loss.backward()
-                sums = self.unimodal_scores(unimodal, batch.labels)
+                sums = self.contribution_scores(contrib, batch.labels)
                 self.modulate_gradients(sums)
                 for m in MODALITIES:
                     coeff_sum[m] += self.last_coeffs[m]
