@@ -15,3 +15,7 @@ mosi,qwen3.8-27b,T,llm,88.63,,88.66,,62.56,,89.30,,,oliver,2026-11-18,"zero-shot
 mosi,deepseek-chat,T,llm,88.05,,88.08,,78.88,,85.83,,,oliver,2026-11-18,"zero-shot, transcript only"
 sims,qwen3.8-27b,T,llm,72.43,,73.37,,43.99,,60.72,,,oliver,2026-11-18,"zero-shot, transcript only"
 sims,deepseek-chat,T,llm,75.27,,76.02,,42.69,,64.01,,,oliver,2026-11-18,"zero-shot, transcript only"
+mosi,audio_gru,A,custom_audio,50.4867,2.2297,44.5667,4.4872,144.4033,1.9116,25.2767,2.9954,"42,43,44",liyuzhelille-eng,2026-11-11,MMSA-compatible metrics x100; std ddof=1; observed lengths; see docs/audio
+mosi,audio_mlp,A,custom_audio,53.4467,0.1674,49.3533,0.2658,141.8767,0.0839,26.9467,0.7220,"42,43,44",liyuzhelille-eng,2026-11-11,MMSA-compatible metrics x100; std ddof=1; observed lengths; see docs/audio
+sims,audio_gru,A,custom_audio,66.8867,2.2047,61.6700,1.2569,56.9467,1.1680,19.1933,4.6653,"42,43,44",liyuzhelille-eng,2026-11-11,MMSA-compatible metrics x100; std ddof=1; observed lengths; see docs/audio
+sims,audio_mlp,A,custom_audio,68.2000,1.0795,59.1967,0.3907,57.9467,0.5052,11.2767,3.8477,"42,43,44",liyuzhelille-eng,2026-11-11,MMSA-compatible metrics x100; std ddof=1; observed lengths; see docs/audio
