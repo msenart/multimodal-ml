@@ -1,8 +1,13 @@
 from multimodal_ml.models.base import MultimodalModel
 from multimodal_ml.models.baseline import ConcatMLP
-
+from multimodal_ml.models.text_only import TextOnlyMLP
+from multimodal_ml.models.text_attention import TextAttentionMLP
+from multimodal_ml.models.text_maxpool import TextMaxPoolMLP
 MODEL_REGISTRY: dict[str, type[MultimodalModel]] = {
     "baseline": ConcatMLP,
+    "text_only": TextOnlyMLP,
+    "text_attention": TextAttentionMLP,
+    "text_maxpool": TextMaxPoolMLP,
 }
 """Models selectable via `python -m multimodal_ml --model <name>`.
 
