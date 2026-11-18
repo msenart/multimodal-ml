@@ -15,6 +15,7 @@ class DatasetConfig:
     label_high: float
     has_acc7: bool
     has_unimodal_labels: bool
+    audio_length_policy: str = "declared"
 
 
 DATASET_REGISTRY: dict[str, DatasetConfig] = {
