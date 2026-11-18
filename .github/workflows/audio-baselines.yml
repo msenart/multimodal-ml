@@ -1,0 +1,46 @@
+name: Audio baseline checks
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/*audio*.py"
+      - "docs/audio/**"
+      - "results/audio_baselines/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/audio-baselines.yml"
+  push:
+    branches: [main, audio-baseline]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/*audio*.py"
+      - "docs/audio/**"
+      - "results/audio_baselines/**"
+      - ".github/workflows/audio-baselines.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-and-reports:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: "3.13"
+      - name: Install locked project environment
+        run: uv sync --locked
+      - name: Test models and fresh-checkout reproduction
+        run: uv run --no-sync python -m unittest discover -s tests -v
+      - name: Check committed English reports
+        run: uv run --no-sync python scripts/report_audio_validation.py --check
