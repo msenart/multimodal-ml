@@ -14,6 +14,7 @@ from multimodal_ml.models.baseline import _masked_mean
 class AudioMLP(MultimodalModel):
     def __init__(self, config: DatasetConfig, hidden_dim: int = 64, dropout: float = 0.3):
         super().__init__(config)
+        self.feature_dim = hidden_dim
         if hidden_dim < 1 or not 0 <= dropout < 1:
             raise ValueError("hidden_dim must be positive and 0 <= dropout < 1")
         self.net = nn.Sequential(
@@ -32,5 +33,8 @@ class AudioMLP(MultimodalModel):
     def from_args(cls, config: DatasetConfig, args: argparse.Namespace) -> "AudioMLP":
         return cls(config, hidden_dim=args.hidden_dim, dropout=args.dropout)
 
+    def encode(self, batch: Batch) -> Tensor:
+        return self.net[:-1](_masked_mean(batch.audio, batch.audio_lengths))
+
     def forward(self, batch: Batch) -> Tensor:
-        return self.net(_masked_mean(batch.audio, batch.audio_lengths)).squeeze(-1)
+        return self.net[-1](self.encode(batch)).squeeze(-1)

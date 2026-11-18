@@ -138,9 +138,21 @@ class MultimodalDataset(Dataset):
                     stacklevel=2,
                 )
                 self.audio_lengths = np.maximum(self.audio_lengths, observed_ends)
-        self.vision_lengths = np.asarray(
-            split_data.get("vision_lengths", [self.vision.shape[1]] * n), dtype=np.int64
-        )
+        if self.vision.ndim != 3 or self.vision.shape[1] == 0 or self.vision.shape[2] != config.vision_dim:
+            raise ValueError(f"{split}: expected vision (N,T,{config.vision_dim}), got {self.vision.shape}")
+        invalid_vision = ~np.isfinite(self.vision)
+        if invalid_vision.any():
+            warnings.warn(f"{split}: replacing {int(invalid_vision.sum())} non-finite visual values with zero",
+                          RuntimeWarning, stacklevel=2)
+            self.vision = np.nan_to_num(self.vision, nan=0.0, posinf=0.0, neginf=0.0)
+        raw_vision_lengths = np.asarray(
+            split_data.get("vision_lengths", [self.vision.shape[1]] * n)
+        ).reshape(-1)
+        if (raw_vision_lengths.shape != (n,) or not np.isfinite(raw_vision_lengths).all()
+                or (raw_vision_lengths < 0).any() or (raw_vision_lengths > self.vision.shape[1]).any()
+                or (raw_vision_lengths != np.floor(raw_vision_lengths)).any()):
+            raise ValueError(f"{split}: vision_lengths must contain N integers within [0,T]")
+        self.vision_lengths = raw_vision_lengths.astype(np.int64)
 
     def __len__(self) -> int:
         return len(self.labels)

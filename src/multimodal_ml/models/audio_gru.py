@@ -23,6 +23,7 @@ class AudioGRU(MultimodalModel):
         self, config: DatasetConfig, hidden_dim: int = 64, dropout: float = 0.3
     ):
         super().__init__(config)
+        self.feature_dim = 2 * hidden_dim
         if hidden_dim < 1 or not 0 <= dropout < 1:
             raise ValueError("hidden_dim must be positive and 0 <= dropout < 1")
         self.encoder = nn.GRU(
@@ -48,7 +49,7 @@ class AudioGRU(MultimodalModel):
     def from_args(cls, config: DatasetConfig, args: argparse.Namespace) -> "AudioGRU":
         return cls(config, hidden_dim=args.hidden_dim, dropout=args.dropout)
 
-    def forward(self, batch: Batch) -> Tensor:
+    def encode(self, batch: Batch) -> Tensor:
         audio = batch.audio
         if audio.ndim != 3 or audio.size(-1) != self.config.audio_dim:
             raise ValueError(f"Expected audio (B,T,{self.config.audio_dim})")
@@ -64,4 +65,7 @@ class AudioGRU(MultimodalModel):
         _, hidden = self.encoder(packed)
         features = torch.cat((hidden[-2], hidden[-1]), dim=-1)
         features = features * (lengths > 0).to(features.device).unsqueeze(-1)
-        return self.regressor(features).squeeze(-1)
+        return features
+
+    def forward(self, batch: Batch) -> Tensor:
+        return self.regressor(self.encode(batch)).squeeze(-1)
