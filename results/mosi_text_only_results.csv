@@ -1,0 +1,2 @@
+dataset,model,variant,source,acc2,acc2_std,f1,f1_std,mae,mae_std,corr,corr_std,seeds,by,date,notes
+mosi,text_only,T,ours,78.05,0.33,78.06,0.35,91.62,1.07,68.47,0.32,42;1111;2024;3407;5201,inspiration0821,2026-11-18,Mean Pooling; L1 Loss; LR=0.0001; Batch=16; Dropout=0.3/0.2; 5 unique seeds; acc2/f1=Has0; all metrics and std x100
