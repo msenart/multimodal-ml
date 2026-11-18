@@ -227,3 +227,9 @@ data/**
 
 # Training checkpoints
 checkpoints/
+
+# Local project tools (uv and optional managed Python)
+.tools/
+
+# Personal notes retained locally; team-facing documentation is in docs/audio/.
+/AUDIO_*_CN.md

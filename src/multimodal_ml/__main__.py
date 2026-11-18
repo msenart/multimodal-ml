@@ -15,6 +15,7 @@ class instead of editing the shared parser below (see models/base.py).
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 from pathlib import Path
 
 from multimodal_ml.config import get_dataset_config
@@ -46,6 +47,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
+    parser.add_argument("--audio-length-policy", choices=["declared", "observed"], default="declared",
+                        help="Use supplied lengths (default), or retain nonzero frames past them")
     model_cls.add_cli_args(parser)
     return parser.parse_args()
 
@@ -54,7 +57,7 @@ def main() -> None:
     args = parse_args()
     set_seed(args.seed)
     device = get_device(args.device)
-    config = get_dataset_config(args.dataset)
+    config = replace(get_dataset_config(args.dataset), audio_length_policy=args.audio_length_policy)
     loaders = make_dataloaders(config, args.batch_size)
 
     model_cls = MODEL_REGISTRY[args.model]

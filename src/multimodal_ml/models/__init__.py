@@ -1,8 +1,12 @@
 from multimodal_ml.models.base import MultimodalModel
 from multimodal_ml.models.baseline import ConcatMLP
+from multimodal_ml.models.audio_gru import AudioGRU
+from multimodal_ml.models.audio_mlp import AudioMLP
 
 MODEL_REGISTRY: dict[str, type[MultimodalModel]] = {
     "baseline": ConcatMLP,
+    "audio_gru": AudioGRU,
+    "audio_mlp": AudioMLP,
 }
 """Models selectable via `python -m multimodal_ml --model <name>`.
 
