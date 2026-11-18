@@ -14,6 +14,8 @@ Each team selects one paper from the curated multimodal machine learning reading
 18 min presentation + 6 min Q&A/discussion
 Approximately 25 min per team including transition.
 
-- Google Docs : https://docs.google.com/document/d/1io_Jnyma8lSN9lAvfc0AAUm38AnEUaxPoliAzqpk44o/edit?usp=sharing
+- Google Drive: https://drive.google.com/drive/folders/1AefmE5LO47fxw-ENnIUAe8DJrYNxEWpM?usp=sharing
 
-- Google Slides : https://docs.google.com/presentation/d/1EL2vGn_9DrpyMWTxjex5YVequyXe8LYG-b8lM14mT8Y/edit?usp=sharing
+- Google Docs: https://docs.google.com/document/d/1io_Jnyma8lSN9lAvfc0AAUm38AnEUaxPoliAzqpk44o/edit?usp=sharing
+
+- Google Slides: https://docs.google.com/presentation/d/1EL2vGn_9DrpyMWTxjex5YVequyXe8LYG-b8lM14mT8Y/edit?usp=sharing
