@@ -1,4 +1,4 @@
-name: Audio baseline checks
+name: Unimodal baseline checks
 
 on:
   pull_request:
@@ -6,19 +6,27 @@ on:
       - "src/**"
       - "tests/**"
       - "scripts/*audio*.py"
+      - "scripts/*vision*.py"
       - "docs/audio/**"
+      - "docs/vision/**"
       - "results/audio_baselines/**"
+      - "results/vision_baselines/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/audio-baselines.yml"
   push:
-    branches: [main, audio-baseline]
+    branches: [main, audio-baseline, vision-baseline]
     paths:
       - "src/**"
       - "tests/**"
       - "scripts/*audio*.py"
+      - "scripts/*vision*.py"
       - "docs/audio/**"
+      - "docs/vision/**"
       - "results/audio_baselines/**"
+      - "results/vision_baselines/**"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/audio-baselines.yml"
   workflow_dispatch:
 
@@ -42,5 +50,7 @@ jobs:
         run: uv sync --locked
       - name: Test models and fresh-checkout reproduction
         run: uv run --no-sync python -m unittest discover -s tests -v
-      - name: Check committed English reports
+      - name: Check committed English audio reports
         run: uv run --no-sync python scripts/report_audio_validation.py --check
+      - name: Check committed English vision report and label contract
+        run: uv run --no-sync python scripts/report_vision_baseline.py --check

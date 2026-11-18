@@ -19,6 +19,12 @@ Both models use the existing MSE/Adam training loop, validation-MAE early stoppi
 checkpoint saving and final testing. The global default model remains `baseline`;
 that existing model uses all three modalities and serves as a pipeline check.
 
+Both expose `encode(batch)` and `feature_dim` for future fusion: AudioMLP returns
+64-dimensional features and AudioGRU returns 128-dimensional features with the
+default settings. The existing state-dict keys are unchanged. Replaying the saved
+seed-42 GRU and MLP checkpoints on both datasets after this interface change gave
+identical test predictions (maximum absolute difference 0.0).
+
 ## Shared data changes
 
 - `(N,1)` scalar targets become `(N,)`, preventing unintended MSE broadcasting.

@@ -15,6 +15,10 @@ For the audio-only GRU and mean-pooling MLP, start with the
 [three-seed results](docs/audio/results.md) and [validation report](docs/audio/validation.md).
 Small, machine-readable results are in [results/audio_baselines](results/audio_baselines/README.md).
 
+For standalone vision-only regression, see the [vision guide](docs/vision/README.md),
+[results and validation](docs/vision/results.md), and [explicit label/metric contract](results/vision_baselines/README.md).
+MOSI (English) and CH-SIMS (Chinese) are trained independently; both predict overall sentiment.
+
 ## Quick start
 
 ### With uv (recommended)
