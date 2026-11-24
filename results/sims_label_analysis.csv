@@ -1,0 +1,3 @@
+model,clips,acc2_vs_M,corr_vs_M,acc2_vs_T,corr_vs_T,acc2_vs_A,corr_vs_A,acc2_vs_V,corr_vs_V,agree_clips,agree_acc2_vs_M,conflict_clips,conflict_acc2_vs_M,conflict_acc2_vs_T
+deepseek-chat,457,75.27,64.01,82.06,81.02,72.43,56.01,67.61,44.02,382,84.29,75,29.33,70.67
+qwen3.8-27b,457,72.43,60.72,80.96,79.2,71.77,54.28,66.52,42.93,382,81.94,75,24.0,76.0
