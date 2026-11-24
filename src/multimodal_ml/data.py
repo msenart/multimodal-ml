@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pickle
+import warnings
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -69,13 +70,12 @@ class MultimodalDataset(Dataset):
     """One split ("train"/"valid"/"test") of an MMSA-format feature pickle.
 
     MMSA's preprocessing already pads/truncates text/audio/vision to a fixed length
-    per dataset, so samples need no further padding to be batched. audio_lengths/
-    vision_lengths record each sample's true (unpadded) length, so a model can mask
-    out the padding itself (e.g. when mean-pooling over time).
+    per dataset, so samples need no further padding to be batched. Supplied audio/
+    vision lengths let a model ignore trailing padding (e.g. when mean-pooling).
 
-    `transform` (a *fitted* FeatureTransform, normally the model's own
-    `model.transform`) is applied once to the feature arrays at construction;
-    None leaves the raw features untouched.
+    The default preserves supplied lengths. The opt-in 'observed' policy extends
+    them to retain nonzero frames beyond a supplied length; it is custom to this
+    project, not a reproduction of MMSA's loader.
     """
 
     def __init__(self, config: DatasetConfig, split: Split, transform: FeatureTransform | None = None):
@@ -84,6 +84,12 @@ class MultimodalDataset(Dataset):
         self.audio = np.asarray(split_data["audio"], dtype=np.float32)
         self.vision = np.asarray(split_data["vision"], dtype=np.float32)
         self.labels = np.asarray(split_data["regression_labels"], dtype=np.float32)
+        # MMSA files may store scalar targets as (N, 1). Keeping that shape
+        # would broadcast MSE against (N,) predictions into an (N, N) loss.
+        if self.labels.ndim == 2 and self.labels.shape[1] == 1:
+            self.labels = self.labels[:, 0]
+        if self.labels.ndim != 1 or not np.isfinite(self.labels).all():
+            raise ValueError(f"{split}: regression_labels must be finite scalar targets")
         self.ids = [str(i) for i in split_data["id"]]
 
         self.audio_lengths = _lengths(split_data, "audio_lengths", self.audio)
@@ -116,7 +122,7 @@ def collate_fn(samples: list[dict]) -> Batch:
         vision=torch.from_numpy(np.stack([s["vision"] for s in samples])),
         audio_lengths=torch.tensor([s["audio_length"] for s in samples], dtype=torch.long),
         vision_lengths=torch.tensor([s["vision_length"] for s in samples], dtype=torch.long),
-        labels=torch.tensor([s["label"] for s in samples], dtype=torch.float32),
+        labels=torch.from_numpy(np.asarray([s["label"] for s in samples], dtype=np.float32)),
         ids=[s["id"] for s in samples],
     )
 

@@ -27,7 +27,7 @@ def _multiclass_acc(preds: np.ndarray, labels: np.ndarray, low: float, high: flo
 def compute_regression_metrics(
     preds: np.ndarray, labels: np.ndarray, config: DatasetConfig
 ) -> dict[str, float]:
-    """Standard multimodal sentiment regression metrics.
+    """Shared project metrics, with generic rather than MMSA-specific binning.
 
     MAE, Pearson Corr, Acc-2 (has0: >=0 vs <0) and Acc-2 (non0: excludes exact-zero
     labels, >0 vs <0) with matching weighted F1, Acc-5, and Acc-7 (only when
