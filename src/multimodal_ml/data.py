@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pickle
+import warnings
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -64,9 +65,12 @@ class MultimodalDataset(Dataset):
     """One split ("train"/"valid"/"test") of an MMSA-format feature pickle.
 
     MMSA's preprocessing already pads/truncates text/audio/vision to a fixed length
-    per dataset, so samples need no further padding to be batched. audio_lengths/
-    vision_lengths record each sample's true (unpadded) length, so a model can mask
-    out the padding itself (e.g. when mean-pooling over time).
+    per dataset, so samples need no further padding to be batched. Supplied audio/
+    vision lengths let a model ignore trailing padding (e.g. when mean-pooling).
+
+    The default preserves supplied lengths. The opt-in 'observed' policy extends
+    them to retain nonzero frames beyond a supplied length; it is custom to this
+    project, not a reproduction of MMSA's loader.
     """
 
     def __init__(self, config: DatasetConfig, split: Split):
@@ -75,15 +79,80 @@ class MultimodalDataset(Dataset):
         self.audio = np.asarray(split_data["audio"], dtype=np.float32)
         self.vision = np.asarray(split_data["vision"], dtype=np.float32)
         self.labels = np.asarray(split_data["regression_labels"], dtype=np.float32)
+        # MMSA files may store scalar targets as (N, 1). Keeping that shape
+        # would broadcast MSE against (N,) predictions into an (N, N) loss.
+        if self.labels.ndim == 2 and self.labels.shape[1] == 1:
+            self.labels = self.labels[:, 0]
+        if self.labels.ndim != 1 or not np.isfinite(self.labels).all():
+            raise ValueError(f"{split}: regression_labels must be finite scalar targets")
         self.ids = [str(i) for i in split_data["id"]]
 
         n = len(self.labels)
+        if (
+            self.audio.ndim != 3
+            or self.audio.shape[0] != n
+            or self.audio.shape[1] == 0
+            or self.audio.shape[2] != config.audio_dim
+        ):
+            raise ValueError(f"{split}: expected audio (N,T,{config.audio_dim}), got {self.audio.shape}")
+        if len(self.text) != n or len(self.vision) != n or len(self.ids) != n:
+            raise ValueError(f"{split}: modalities, ids and labels have different sample counts")
+        invalid = ~np.isfinite(self.audio)
+        if invalid.any():
+            warnings.warn(
+                f"{split}: replacing {int(invalid.sum())} non-finite audio values with zero",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            self.audio = np.nan_to_num(self.audio, nan=0.0, posinf=0.0, neginf=0.0)
+        raw_lengths = np.asarray(
+            split_data.get("audio_lengths", [self.audio.shape[1]] * n)
+        ).reshape(-1)
+        if (
+            raw_lengths.shape != (n,)
+            or not np.isfinite(raw_lengths).all()
+            or (raw_lengths < 0).any()
+            or (raw_lengths > self.audio.shape[1]).any()
+            or (raw_lengths != np.floor(raw_lengths)).any()
+        ):
+            raise ValueError(f"{split}: audio_lengths must contain N integers within [0,T]")
         self.audio_lengths = np.asarray(
-            split_data.get("audio_lengths", [self.audio.shape[1]] * n), dtype=np.int64
+            raw_lengths, dtype=np.int64
         )
-        self.vision_lengths = np.asarray(
-            split_data.get("vision_lengths", [self.vision.shape[1]] * n), dtype=np.int64
-        )
+        # Some official MOSI samples contain signal after audio_lengths. Keep
+        # the supplied length as a minimum, and include every observed frame.
+        # Interior zero frames are preserved; only trailing padding is ignored.
+        if config.audio_length_policy not in ("declared", "observed"):
+            raise ValueError("audio_length_policy must be 'declared' or 'observed'")
+        if config.audio_length_policy == "observed":
+            nonzero_frames = np.any(self.audio != 0, axis=-1)
+            observed_ends = np.where(
+                nonzero_frames, np.arange(self.audio.shape[1])[None, :] + 1, 0
+            ).max(axis=1)
+            extended = observed_ends > self.audio_lengths
+            if extended.any():
+                warnings.warn(
+                    f"{split}: audio lengths extended for {int(extended.sum())} samples "
+                    "to retain nonzero frames beyond the supplied lengths",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                self.audio_lengths = np.maximum(self.audio_lengths, observed_ends)
+        if self.vision.ndim != 3 or self.vision.shape[1] == 0 or self.vision.shape[2] != config.vision_dim:
+            raise ValueError(f"{split}: expected vision (N,T,{config.vision_dim}), got {self.vision.shape}")
+        invalid_vision = ~np.isfinite(self.vision)
+        if invalid_vision.any():
+            warnings.warn(f"{split}: replacing {int(invalid_vision.sum())} non-finite visual values with zero",
+                          RuntimeWarning, stacklevel=2)
+            self.vision = np.nan_to_num(self.vision, nan=0.0, posinf=0.0, neginf=0.0)
+        raw_vision_lengths = np.asarray(
+            split_data.get("vision_lengths", [self.vision.shape[1]] * n)
+        ).reshape(-1)
+        if (raw_vision_lengths.shape != (n,) or not np.isfinite(raw_vision_lengths).all()
+                or (raw_vision_lengths < 0).any() or (raw_vision_lengths > self.vision.shape[1]).any()
+                or (raw_vision_lengths != np.floor(raw_vision_lengths)).any()):
+            raise ValueError(f"{split}: vision_lengths must contain N integers within [0,T]")
+        self.vision_lengths = raw_vision_lengths.astype(np.int64)
 
     def __len__(self) -> int:
         return len(self.labels)
@@ -107,7 +176,7 @@ def collate_fn(samples: list[dict]) -> Batch:
         vision=torch.from_numpy(np.stack([s["vision"] for s in samples])),
         audio_lengths=torch.tensor([s["audio_length"] for s in samples], dtype=torch.long),
         vision_lengths=torch.tensor([s["vision_length"] for s in samples], dtype=torch.long),
-        labels=torch.tensor([s["label"] for s in samples], dtype=torch.float32),
+        labels=torch.from_numpy(np.asarray([s["label"] for s in samples], dtype=np.float32)),
         ids=[s["id"] for s in samples],
     )
 
