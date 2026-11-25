@@ -54,7 +54,7 @@ def main():
              "unrestricted scalars; the ground-truth range is not a hard output bound. Neither dataset uses",
              "the CH-SIMS `regression_labels_V` field for training, and no weights or normalization statistics",
              "are transferred or shared between the English and Chinese models.", "",
-             "VisionMLP: masked mean over valid frames -> training-only feature z-score -> dropout(0.3) ->",
+             "VisionMLPDeep: masked mean over valid frames -> training-only feature z-score -> dropout(0.3) ->",
              "three 64-unit ReLU layers -> scalar regression head. Constant training features use unit scale.",
              "The fitted normalization is stored with the weights. This is a defined feature-level baseline,",
              "not a raw-image CNN or a claim to reproduce a published architecture.", "",
@@ -95,7 +95,7 @@ def main():
             factor = 100 if percent else 1
             a = aggregate[key]
             return f"{a['mean']*factor:.4f} +/- {a['sample_std']*factor:.4f}" + ("%" if percent else "")
-        lines.append(f"| {name.upper()} | VisionMLP | {fmt('mae')} | {fmt('corr')} | {fmt('acc2_non0',True)} | {fmt('f1_non0',True)} |")
+        lines.append(f"| {name.upper()} | VisionMLPDeep | {fmt('mae')} | {fmt('corr')} | {fmt('acc2_non0',True)} | {fmt('f1_non0',True)} |")
     lines += ["", "## Interpretation", "",
               "CH-SIMS shows useful visual prediction signal relative to a training-median constant. Ridge is",
               "slightly better than this MLP on test MAE, so the neural model is not claimed to be the strongest",
@@ -138,7 +138,7 @@ def main():
               "intervention, corresponding to zero normalized input, is also recorded.", "",
               "## Checkpoints and future use", "",
               f"All logs, normalizers, per-example predictions and six final model files are under `{summary['artifacts']}/`.",
-              "Use the dataset-specific checkpoint, instantiate `VisionMLP(get_dataset_config(dataset))`,",
+              "Use the dataset-specific checkpoint, instantiate `VisionMLPDeep(get_dataset_config(dataset))`,",
               "and load `checkpoint['model_state']`. Call `encode(batch)` for a 64-dimensional representation.",
               "Keep the whole wrapper, including normalization buffers; copying only `.encoder` drops normalization.", "",
               "No fusion or OGM training has been performed in this standalone study. Only code, English documentation",

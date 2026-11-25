@@ -28,7 +28,7 @@ from multimodal_ml.checkpoint import load_checkpoint
 from multimodal_ml.config import get_dataset_config
 from multimodal_ml.data import Batch
 from multimodal_ml.metrics import compute_regression_metrics
-from multimodal_ml.models.vision_mlp import VisionMLP
+from multimodal_ml.models.vision_mlp_deep import VisionMLPDeep
 from multimodal_ml.reference_metrics import compute_mmsa_metrics
 from multimodal_ml.seed import set_seed
 from check_audio_data import OFFICIAL_SHA256
@@ -91,7 +91,7 @@ def load_local_data(name):
         raw = pickle.load(stream)
     splits, examples, fingerprints = {}, {}, {}
     audit = {"sha256": digest, "vision_length_policy": "declared, unchanged", "splits": {}}
-    pooler = VisionMLP(config, normalization="none")
+    pooler = VisionMLPDeep(config, normalization="none")
     for split in ("train", "valid", "test"):
         source = raw[split]
         vision = np.asarray(source["vision"], dtype=np.float32)
@@ -168,8 +168,8 @@ def scores(prediction, labels, config):
 
 def train_run(config, splits, examples, directory, seed, epochs):
     set_seed(seed)
-    model = VisionMLP(config)
-    args = argparse.Namespace(dataset=config.name, model="vision_mlp", epochs=epochs,
+    model = VisionMLPDeep(config)
+    args = argparse.Namespace(dataset=config.name, model="vision_mlp_deep", epochs=epochs,
                               batch_size=32, lr=0.001, patience=10, seed=seed, device="cpu",
                               hidden_dim=64, dropout=0.3, vision_normalization="train_zscore",
                               checkpoint_dir=directory, audio_length_policy="declared")
@@ -178,7 +178,7 @@ def train_run(config, splits, examples, directory, seed, epochs):
     with (directory / "console.log").open("w", encoding="utf-8") as stream, redirect_stdout(stream), redirect_stderr(stream):
         start = time.perf_counter()
         returned = model.training_routine(loaders, torch.device("cpu"), args)
-    checkpoint = directory / f"{config.name}_vision_mlp_best.pt"
+    checkpoint = directory / f"{config.name}_vision_mlp_deep_best.pt"
     meta = load_checkpoint(checkpoint, model)
     result = {"seed": seed, "best_epoch": meta["epoch"] + 1, "best_valid_mae": meta["metric_value"],
               "checkpoint": str(checkpoint.relative_to(ROOT).as_posix()), "seconds": time.perf_counter() - start,
@@ -242,7 +242,7 @@ def small_subset_fit(config, splits, directory):
     train = splits["train"]
     indices = np.argsort(train.labels.numpy(), kind="stable")[np.linspace(0, len(train) - 1, 16, dtype=int)]
     batch = collate([train[int(i)] for i in indices])
-    model = VisionMLP(config, dropout=0.0)
+    model = VisionMLPDeep(config, dropout=0.0)
     model.fit_normalizer(loader(train))
     optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
     initial = float(F.mse_loss(model(batch), batch.labels).detach())
@@ -306,7 +306,7 @@ def main():
     stamp = datetime.now(timezone(timedelta(hours=8))).strftime("%Y%m%d_%H%M%S")
     output = (args.output or ROOT / "checkpoints/vision_baseline" / stamp).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    protocol = {"datasets": ["mosi", "sims"], "model": "vision_mlp", "target": "overall regression_labels",
+    protocol = {"datasets": ["mosi", "sims"], "model": "vision_mlp_deep", "target": "overall regression_labels",
                 "input": "vision features and declared vision_lengths only", "normalization": "training-only pooled-feature z-score",
                 "cache": "exact masked means; raw sequence inference checked", "seeds": [42, 43, 44],
                 "hidden_dim": 64, "hidden_layers": 3, "dropout": 0.3, "loss": "MSE", "optimizer": "Adam",

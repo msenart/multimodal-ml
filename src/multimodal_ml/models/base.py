@@ -60,6 +60,13 @@ class MultimodalModel(nn.Module, ABC):
         """
         return cls(config)
 
+    def diagnostic_metrics(self, loader, device: torch.device) -> dict[str, float]:
+        """Override to add model-specific metrics for a whole split (e.g. per-modality
+        contributions). `evaluate` merges the result into its metrics, so it shows
+        up in validation logs, the test table and the returned test metrics.
+        Called in eval mode under no_grad. Default: no extra metrics."""
+        return {}
+
     def training_routine(
         self, loaders: "Loaders", device: torch.device, args: argparse.Namespace
     ) -> dict[str, float]:

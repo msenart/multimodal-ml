@@ -1,23 +1,22 @@
 // template.typ
-#let rapport(titre: "", auteurs: (), date: datetime.today(), body) = {
-  set document(title: titre, author: auteurs)
-  set text(lang: "en", size: 11pt)
+#let report(title: "", authors: (), date: datetime.today(), body) = {
+  set document(title: title, author: authors)
+  set text(font: "New Computer Modern", lang: "en", size: 11pt)
   set par(justify: true)
   set heading(numbering: "1.1.")
   set math.equation(numbering: "(1)")
-  set text(font: "New Computer Modern", lang: "fr", size: 11pt)
-  
-  // Page de garde
+
+  // Title page
   align(center + horizon)[
-    #text(size: 22pt, weight: "bold", titre)
+    #text(size: 22pt, weight: "bold", title)
     #v(1cm)
-    #auteurs.join(", ")
+    #authors.join(", ")
     #v(0.5cm)
-    #date.display("[day]/[month]/[year]")
+    #date.display("[month repr:long] [day padding:none], [year]")
   ]
   pagebreak()
 
-  // Reste du document
+  // Rest of the document
   set page(numbering: "1")
   outline()
   pagebreak()

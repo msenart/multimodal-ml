@@ -63,3 +63,33 @@ def compute_regression_metrics(
         metrics["f1_non0"] = f1_score(non0_truth, non0_pred, average="weighted")
 
     return metrics
+
+
+def compute_contribution_metrics(
+    contributions: dict[str, np.ndarray], labels: np.ndarray
+) -> dict[str, float]:
+    """Per-modality dominance metrics for an additive fusion (prediction = sum of parts).
+
+    For each modality m with contribution c_m over a whole split:
+      - `{m}_share`: Var(c_m) / sum_k Var(c_k), the part of the prediction's spread
+        coming from m. Shares sum to 1 (0 for all if every part is constant).
+        Covariance between contributions is ignored, so this is a simple guide,
+        not an exact variance decomposition.
+      - `{m}_corr`: Pearson corr(c_m, labels), how well m's part alone tracks the
+        labels (0 when either side is constant).
+      - `{m}_mae`: MAE of c_m + sum_{k != m} mean(c_k), i.e. the prediction from m
+        alone with the other modalities held at their average contribution.
+    """
+    labels = np.asarray(labels, dtype=np.float64).reshape(-1)
+    parts = {m: np.asarray(c, dtype=np.float64).reshape(-1) for m, c in contributions.items()}
+    variances = {m: c.var() for m, c in parts.items()}
+    total_var = sum(variances.values())
+    means = {m: c.mean() for m, c in parts.items()}
+    metrics = {}
+    for m, c in parts.items():
+        metrics[f"{m}_share"] = float(variances[m] / total_var) if total_var > 0 else 0.0
+        constant = c.size < 2 or c.std() == 0 or labels.std() == 0
+        metrics[f"{m}_corr"] = 0.0 if constant else float(np.corrcoef(c, labels)[0, 1])
+        others = sum(means[k] for k in parts if k != m)
+        metrics[f"{m}_mae"] = float(np.mean(np.abs(c + others - labels)))
+    return metrics

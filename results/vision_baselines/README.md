@@ -43,7 +43,7 @@ sentiment score units. Report accuracy/F1 columns use percentages. Neural means
 and standard deviations use three runs and sample std (`ddof=1`). Ridge and the
 training-median constant are deterministic references, not three-seed neural runs.
 
-The two `source=custom_vision`, `model=vision_mlp`, `variant=V` rows in the shared
+The two `source=custom_vision`, `model=vision_mlp_deep`, `variant=V` rows in the shared
 [`results.csv`](../results.csv) use dataset-specific evaluation and the table's
 existing **x100 convention for all metrics**, including MAE and correlation.
 They use MOSI `Has0_acc_2`/`Has0_F1_score` and CH-SIMS `Mult_acc_2`/`F1_score`.

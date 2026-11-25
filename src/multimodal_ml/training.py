@@ -86,8 +86,10 @@ def evaluate(
         all_labels.append(batch.labels.cpu().numpy())
     preds = np.concatenate(all_preds)
     labels = np.concatenate(all_labels)
+    metrics = compute_regression_metrics(preds, labels, model.config)
+    metrics.update(model.diagnostic_metrics(loader, device))
     model.train()
-    return compute_regression_metrics(preds, labels, model.config)
+    return metrics
 
 
 def describe_device(device: torch.device) -> str:

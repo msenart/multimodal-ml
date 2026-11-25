@@ -42,7 +42,7 @@
       "mosi",
       "sims"
     ],
-    "model": "vision_mlp",
+    "model": "vision_mlp_deep",
     "target": "overall regression_labels",
     "input": "vision features and declared vision_lengths only",
     "normalization": "training-only pooled-feature z-score",

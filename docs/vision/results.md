@@ -19,7 +19,7 @@ unrestricted scalars; the ground-truth range is not a hard output bound. Neither
 the CH-SIMS `regression_labels_V` field for training, and no weights or normalization statistics
 are transferred or shared between the English and Chinese models.
 
-VisionMLP: masked mean over valid frames -> training-only feature z-score -> dropout(0.3) ->
+VisionMLPDeep: masked mean over valid frames -> training-only feature z-score -> dropout(0.3) ->
 three 64-unit ReLU layers -> scalar regression head. Constant training features use unit scale.
 The fitted normalization is stored with the weights. This is a defined feature-level baseline,
 not a raw-image CNN or a claim to reproduce a published architecture.
@@ -38,10 +38,10 @@ correlation. Those binary scores must not be confused with the `non0` column bel
 | --- | --- | ---: | ---: | ---: | ---: |
 | MOSI | Training-median constant | 1.4559 | Undefined | 42.23% | 25.07% |
 | MOSI | Ridge regression | 1.4624 | 0.1699 | 49.85% | 44.48% |
-| MOSI | VisionMLP | 1.4402 +/- 0.0309 | 0.1398 +/- 0.0355 | 49.2886 +/- 2.5248% | 44.2452 +/- 5.8857% |
+| MOSI | VisionMLPDeep | 1.4402 +/- 0.0309 | 0.1398 +/- 0.0355 | 49.2886 +/- 2.5248% | 44.2452 +/- 5.8857% |
 | SIMS | Training-median constant | 0.5886 | Undefined | 63.92% | 49.85% |
 | SIMS | Ridge regression | 0.5249 | 0.4491 | 72.94% | 72.39% |
-| SIMS | VisionMLP | 0.5336 +/- 0.0048 | 0.4234 +/- 0.0093 | 72.3368 +/- 2.1920% | 71.5262 +/- 2.1070% |
+| SIMS | VisionMLPDeep | 0.5336 +/- 0.0048 | 0.4234 +/- 0.0093 | 72.3368 +/- 2.1920% | 71.5262 +/- 2.1070% |
 
 ## Interpretation
 
@@ -102,7 +102,7 @@ intervention, corresponding to zero normalized input, is also recorded.
 ## Checkpoints and future use
 
 All logs, normalizers, per-example predictions and six final model files are under `checkpoints/vision_baseline/20261118_standalone/`.
-Use the dataset-specific checkpoint, instantiate `VisionMLP(get_dataset_config(dataset))`,
+Use the dataset-specific checkpoint, instantiate `VisionMLPDeep(get_dataset_config(dataset))`,
 and load `checkpoint['model_state']`. Call `encode(batch)` for a 64-dimensional representation.
 Keep the whole wrapper, including normalization buffers; copying only `.encoder` drops normalization.
 

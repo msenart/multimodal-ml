@@ -1,14 +1,13 @@
 #import "template.typ": *
 
-#show: rapport.with(
-  titre: "Multimodal Machine Learning Project",
-  auteurs: ("Toi", "Ton binôme"),
+#show: report.with(
+  title: "Multimodal Machine Learning Project",
+  authors: ("Author 1", "Author 2"),
 )
-
-#outline()
 
 #include "introduction.typ"
 #include "metrics.typ"
 #include "baseline.typ"
+#include "ogm.typ"
 
 #bibliography("biblio.bib")
