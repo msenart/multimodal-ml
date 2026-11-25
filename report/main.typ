@@ -10,5 +10,6 @@
 #include "introduction.typ"
 #include "metrics.typ"
 #include "baseline.typ"
+#include "ogm_ge.typ"
 
 #bibliography("biblio.bib")

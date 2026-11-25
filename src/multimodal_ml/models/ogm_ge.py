@@ -25,6 +25,12 @@ Structure (paper eq. 1-2):
   - the loss is the MSE of the fused prediction only (no auxiliary heads)
   - before the optimizer step, the encoders' gradients are modulated and GE noise
     is injected.
+
+Ablation switches (same architecture, same loop, only the named part changes):
+  --no-modulation   k^u = 1 for every modality (rho is still computed and logged)
+  --no-ge           no Gaussian noise added to the encoders' gradients
+  --optimizer adam  Adam instead of SGD
+With --no-modulation --no-ge the model is a plain linear late-fusion baseline.
 """
 
 from __future__ import annotations
@@ -65,11 +71,22 @@ EPS = 1e-12
 
 
 class OGMGE(MultimodalModel):
-    def __init__(self, config: DatasetConfig, hidden_dim: int = 128, alpha: float = 0.5):
+    def __init__(
+        self,
+        config: DatasetConfig,
+        hidden_dim: int = 128,
+        alpha: float = 0.5,
+        modulation: bool = True,
+        ge: bool = True,
+        optimizer: str = "sgd",
+    ):
         super().__init__(config)
         dims = {"text": config.text_dim, "audio": config.audio_dim, "vision": config.vision_dim}
         self.hidden_dim = hidden_dim
         self.alpha = alpha  # modulation strength, paper's α in [0, 1]
+        self.modulation = modulation  # False: k^u = 1 (no gradient rescaling)
+        self.ge = ge  # False: no GE gradient noise
+        self.optimizer_name = optimizer
 
         self.encoders = nn.ModuleDict(
             {m: nn.Sequential(nn.Linear(d, hidden_dim), nn.ReLU()) for m, d in dims.items()}
@@ -81,15 +98,28 @@ class OGMGE(MultimodalModel):
         # mini-batch gradient mean and variance, and the last modulation coefficients.
         self._grad_stats: dict[str, tuple[Tensor, Tensor]] = {}
         self.last_coeffs: dict[str, float] = {m: 1.0 for m in MODALITIES}
+        self.last_rhos: dict[str, float] = {m: 1.0 for m in MODALITIES}
+        # One dict per epoch: train loss, mean k and rho per modality, validation metrics.
+        self.history: list[dict] = []
 
     @classmethod
     def add_cli_args(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("--hidden-dim", type=int, default=128)
         parser.add_argument("--alpha", type=float, default=0.5, help="OGM-GE modulation strength in [0, 1]")
+        parser.add_argument("--no-modulation", action="store_true", help="ablation: k^u = 1 (no OGM)")
+        parser.add_argument("--no-ge", action="store_true", help="ablation: no GE gradient noise")
+        parser.add_argument("--optimizer", choices=["sgd", "adam"], default="sgd")
 
     @classmethod
     def from_args(cls, config: DatasetConfig, args: argparse.Namespace) -> "OGMGE":
-        return cls(config, hidden_dim=args.hidden_dim, alpha=args.alpha)
+        return cls(
+            config,
+            hidden_dim=args.hidden_dim,
+            alpha=args.alpha,
+            modulation=not args.no_modulation,
+            ge=not args.no_ge,
+            optimizer=args.optimizer,
+        )
 
     def encode(self, batch: Batch) -> dict[str, Tensor]:
         pooled = {
@@ -137,14 +167,22 @@ class OGMGE(MultimodalModel):
           k^u   = 1 - tanh(alpha * rho^u) if rho^u > 1, else 1           (paper eq. 10)
           grad  = k^u * g + h,  h ~ N(0, var)                             (paper eq. 16)
         where var is an EMA estimate of the per-parameter variance of the mini-batch
-        gradient g (GE noise, paper section 3.3).
+        gradient g (GE noise, paper section 3.3). With modulation off, k^u = 1; with
+        GE off, h = 0.
         """
         totals = {m: float(sums[m]) for m in MODALITIES}
         for m in MODALITIES:
             others = [totals[v] for v in MODALITIES if v != m]
             rho = totals[m] / max(sum(others) / len(others), EPS)
-            k = 1.0 - math.tanh(self.alpha * rho) if rho > 1.0 else 1.0
+            k = 1.0 - math.tanh(self.alpha * rho) if (self.modulation and rho > 1.0) else 1.0
+            self.last_rhos[m] = rho
             self.last_coeffs[m] = k
+            if not self.ge:
+                if k != 1.0:
+                    for p in self.encoders[m].parameters():
+                        if p.grad is not None:
+                            p.grad.mul_(k)
+                continue
 
             for name, p in self.encoders[m].named_parameters():
                 if p.grad is None:
@@ -164,9 +202,13 @@ class OGMGE(MultimodalModel):
         OGM-GE gradient modulation with GE noise, and SGD."""
         train_loader, valid_loader, test_loader = loaders
 
-        optimizer = torch.optim.SGD(
-            self.parameters(), lr=args.lr, momentum=SGD_MOMENTUM, weight_decay=SGD_WEIGHT_DECAY
-        )
+        if self.optimizer_name == "adam":
+            optimizer = torch.optim.Adam(self.parameters(), lr=args.lr)
+        else:
+            optimizer = torch.optim.SGD(
+                self.parameters(), lr=args.lr, momentum=SGD_MOMENTUM, weight_decay=SGD_WEIGHT_DECAY
+            )
+        self.history = []
         stopper = EarlyStopper(patience=args.patience, mode="min")
         checkpoint_path = args.checkpoint_dir / f"{args.dataset}_{args.model}_best.pt"
 
@@ -182,6 +224,7 @@ class OGMGE(MultimodalModel):
             start = time.perf_counter()
             total_loss, n_seen = 0.0, 0
             coeff_sum = {m: 0.0 for m in MODALITIES}
+            rho_sum = {m: 0.0 for m in MODALITIES}
             n_batches = 0
             for batch in train_loader:
                 batch = batch.to(device)
@@ -194,6 +237,7 @@ class OGMGE(MultimodalModel):
                 self.modulate_gradients(sums)
                 for m in MODALITIES:
                     coeff_sum[m] += self.last_coeffs[m]
+                    rho_sum[m] += self.last_rhos[m]
                 n_batches += 1
                 optimizer.step()
 
@@ -205,6 +249,16 @@ class OGMGE(MultimodalModel):
 
             val_metrics = evaluate(self, valid_loader, device, desc="validation")
             elapsed = time.perf_counter() - start
+            nb = max(n_batches, 1)
+            self.history.append(
+                {
+                    "epoch": epoch + 1,
+                    "train_loss": train_loss,
+                    "k": {m: coeff_sum[m] / nb for m in MODALITIES},
+                    "rho": {m: rho_sum[m] / nb for m in MODALITIES},
+                    "val": val_metrics,
+                }
+            )
 
             should_stop = stopper.step(val_metrics["mae"])
             marker = ""
@@ -216,6 +270,7 @@ class OGMGE(MultimodalModel):
             say(
                 f"Epoch {epoch + 1}/{args.epochs} | {elapsed:.1f}s | train_loss={train_loss:.4f}"
                 f"\n  coeff (mean k): {coeffs}"
+                f"\n  ratio (mean rho): " + "  ".join(f"{m}={rho_sum[m] / nb:.3f}" for m in MODALITIES) +
                 f"\n  val: {format_metrics(val_metrics)}{marker}"
             )
 
