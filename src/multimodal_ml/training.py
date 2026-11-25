@@ -138,7 +138,7 @@ def default_routine(
     """
     train_loader, valid_loader, test_loader = loaders
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = model.configure_optimizer(args)
     stopper = EarlyStopper(patience=args.patience, mode="min")
     checkpoint_path = args.checkpoint_dir / f"{args.dataset}_{args.model}_best.pt"
 
@@ -161,6 +161,7 @@ def default_routine(
 
             optimizer.zero_grad()
             loss.backward()
+            model.on_after_backward(batch, epoch)
             optimizer.step()
 
             n = batch.labels.numel()

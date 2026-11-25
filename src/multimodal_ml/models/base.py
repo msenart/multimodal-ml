@@ -60,6 +60,16 @@ class MultimodalModel(nn.Module, ABC):
         """
         return cls(config)
 
+    def configure_optimizer(self, args: argparse.Namespace) -> torch.optim.Optimizer:
+        """Optimizer used by the default routine. Default: Adam(lr=args.lr)."""
+        return torch.optim.Adam(self.parameters(), lr=args.lr)
+
+    def on_after_backward(self, batch: Batch, epoch: int) -> None:
+        """Called by the default routine after `loss.backward()` and before
+        `optimizer.step()`, e.g. to modulate gradients. `epoch` is 0-indexed.
+        Default: nothing."""
+        return
+
     def diagnostic_metrics(self, loader, device: torch.device) -> dict[str, float]:
         """Override to add model-specific metrics for a whole split (e.g. per-modality
         contributions). `evaluate` merges the result into its metrics, so it shows

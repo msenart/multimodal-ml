@@ -101,6 +101,83 @@ class ConcatFusionTests(unittest.TestCase):
         self.assertEqual(list(model.encoders), ["audio"])
 
 
+class OGMTests(unittest.TestCase):
+    def setUp(self):
+        torch.manual_seed(0)
+        self.config = get_dataset_config("mosi")
+        self.batch = Batch(
+            text=torch.randn(8, 2, self.config.text_dim), audio=torch.randn(8, 6, self.config.audio_dim),
+            vision=torch.randn(8, 6, self.config.vision_dim), audio_lengths=torch.full((8,), 6),
+            vision_lengths=torch.full((8,), 6), labels=torch.linspace(-2, 2, 8), ids=[],
+        )
+
+    def grads_after_hook(self, ogm, epoch=0, **kwargs):
+        torch.manual_seed(1)
+        model = ConcatFusion(self.config, hidden_dim=8, ogm=ogm, **kwargs)
+        (model(self.batch) - self.batch.labels).square().mean().backward()
+        raw = {n: p.grad.clone() for n, p in model.named_parameters() if p.grad is not None}
+        model.on_after_backward(self.batch, epoch)
+        return model, raw, {n: p.grad for n, p in model.named_parameters() if p.grad is not None}
+
+    def test_none_leaves_gradients_unchanged(self):
+        model, raw, after = self.grads_after_hook("none")
+        for name in raw:
+            torch.testing.assert_close(after[name], raw[name])
+        self.assertEqual(model.ogm_log, [])
+
+    def test_ogm_scales_each_encoder_by_its_coefficient(self):
+        model, raw, after = self.grads_after_hook("ogm", ogm_alpha=0.7)
+        (entry,) = model.ogm_log
+        for m, k in entry["coeff"].items():
+            rho = entry["ratio"][m]
+            self.assertAlmostEqual(k, 1 - np.tanh(0.7 * rho) if rho > 1 else 1.0)
+            for name in raw:
+                if name.startswith(f"encoders.{m}."):
+                    torch.testing.assert_close(after[name], raw[name] * k)
+        self.assertLess(min(entry["coeff"].values()), 1.0)  # someone is above the others' mean
+        torch.testing.assert_close(after["head.head.weight"], raw["head.head.weight"])  # head untouched
+
+    def test_ogm_ge_adds_noise_to_encoders_only(self):
+        model, raw, after = self.grads_after_hook("ogm-ge")
+        k = model.ogm_log[0]["coeff"]["text"]
+        weight = "encoders.text.net.0.weight"
+        self.assertFalse(torch.allclose(after[weight], raw[weight] * k))
+        noise = after[weight] - raw[weight] * k
+        self.assertAlmostEqual(noise.std().item(), raw[weight].std().item(), delta=0.1 * raw[weight].std().item())
+        torch.testing.assert_close(after["head.head.bias"], raw["head.head.bias"])
+
+    def test_two_modalities_match_the_paper_ratio(self):
+        model = ConcatFusion(self.config, audio="none", hidden_dim=8, ogm="ogm").eval()
+        ratios, coeffs = model.ogm_coefficients(model.encode(self.batch), self.batch.labels)
+        self.assertAlmostEqual(ratios["text"] * ratios["vision"], 1.0, places=5)  # rho_a = 1 / rho_v
+        self.assertEqual(sorted(coeffs.values())[-1], 1.0)
+
+    def test_epoch_window_and_single_modality(self):
+        model, raw, after = self.grads_after_hook("ogm", epoch=1, ogm_start=2)
+        self.assertEqual(model.ogm_log, [])
+        model, _, _ = self.grads_after_hook("ogm", epoch=3, ogm_end=3)
+        self.assertEqual(model.ogm_log, [])
+        self.assertFalse(ConcatFusion(self.config, audio="none", vision="none", ogm="ogm").ogm_active(0))
+        with self.assertRaises(ValueError):
+            ConcatFusion(self.config, ogm="ogm-g")
+
+    def test_cli_and_optimizer(self):
+        from multimodal_ml.__main__ import parse_args
+        with patch("sys.argv", ["train", "--dataset", "mosi", "--model", "concat_fusion", "--ogm", "ogm-ge",
+                                "--ogm-alpha", "0.3", "--ogm-end", "10", "--optimizer", "sgd",
+                                "--weight-decay", "1e-4"]):
+            args = parse_args()
+        model = ConcatFusion.from_args(self.config, args)
+        self.assertEqual((model.ogm, model.ogm_alpha, model.ogm_start, model.ogm_end), ("ogm-ge", 0.3, 0, 10))
+        optimizer = model.configure_optimizer(args)
+        self.assertIsInstance(optimizer, torch.optim.SGD)
+        self.assertEqual((optimizer.defaults["momentum"], optimizer.defaults["weight_decay"]), (0.9, 1e-4))
+        with patch("sys.argv", ["train", "--dataset", "mosi", "--model", "concat_fusion"]):
+            args = parse_args()
+        self.assertEqual(ConcatFusion.from_args(self.config, args).ogm, "none")
+        self.assertIsInstance(ConcatFusion(self.config).configure_optimizer(args), torch.optim.Adam)
+
+
 class ContributionMetricsTests(unittest.TestCase):
     def test_synthetic_contributions(self):
         labels = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])

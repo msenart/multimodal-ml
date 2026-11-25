@@ -1,4 +1,9 @@
-"""A minimal differentiable fusion head, not an OGM implementation."""
+"""Concatenation fusion of per-modality encoders, with optional OGM / OGM-GE.
+
+OGM-GE (Peng et al., CVPR 2022) slows down the encoder of the dominant modality
+during joint training. See `ConcatFusion` for how it is adapted to regression
+and to more than two modalities.
+"""
 from __future__ import annotations
 
 import argparse
@@ -66,6 +71,8 @@ AUDIO_ENCODERS = {"audio-mlp": AudioMLP, "audio-gru": AudioGRU}
 # "vision-mlp" matches the text/audio MLPs; "vision-mlp-deep" is the 3-layer
 # VisionMLPDeep with its own normaliser, as used for the results in docs/vision.
 VISION_ENCODERS = {"vision-mlp": VisionMLP, "vision-mlp-deep": VisionMLPDeep}
+OGM_MODES = ("none", "ogm", "ogm-ge")
+OPTIMIZERS = ("adam", "sgd")
 
 
 class ConcatFusion(MultimodalModel):
@@ -75,12 +82,41 @@ class ConcatFusion(MultimodalModel):
     is chosen by name (see TEXT_ENCODERS / AUDIO_ENCODERS / VISION_ENCODERS);
     "none" leaves that modality out of the model entirely. Each encoder's own
     regressor is unused; only its `encode` output enters the head.
+
+    On-the-fly gradient modulation (`ogm`): "none" trains normally; "ogm" scales
+    the gradient of each encoder by k_m before the optimizer step; "ogm-ge" also
+    adds Gaussian noise to it (generalization enhancement). At each training step:
+
+    - the head's additive part c_m = W_m phi_m + b/M (see `contributions`) is the
+      uni-modal prediction of modality m, as in the paper (b/2 for M=2);
+    - the score of m is s_m = sum_i exp(-(c_m,i - y_i)^2 / (2 sigma^2)), the
+      Gaussian likelihood of the true label: the regression counterpart of the
+      paper's softmax probability of the true class. sigma = (label range) / 6,
+      i.e. 1 on CMU-MOSI;
+    - rho_m = s_m / mean of the other modalities' scores (for M=2 this is the
+      paper's ratio), and k_m = 1 - tanh(alpha * rho_m) if rho_m > 1, else 1;
+    - every encoder parameter gets grad <- k_m * grad, and with "ogm-ge" also
+      + N(0, std(grad)^2), the std taken over the tensor's unmodulated gradient
+      as in the official code.
+
+    Modulation is active for 0-indexed epochs in [ogm_start, ogm_end) (ogm_end
+    None: until the end). The head is never modulated. Per-step rho/k values are
+    appended to `ogm_log`.
     """
 
     def __init__(self, config: DatasetConfig, text: str = "text-mlp", audio: str = "audio-mlp",
                  vision: str = "vision-mlp", hidden_dim: int = 64, dropout: float = 0.3,
-                 vision_normalization: str = "train_zscore", pooling: str = "mean", num_layers: int = 1):
+                 vision_normalization: str = "train_zscore", pooling: str = "mean", num_layers: int = 1,
+                 ogm: str = "none", ogm_alpha: float = 0.5, ogm_start: int = 0, ogm_end: int | None = None):
         super().__init__(config)
+        if ogm not in OGM_MODES:
+            raise ValueError(f"ogm must be one of {list(OGM_MODES)}")
+        if ogm_alpha < 0:
+            raise ValueError("ogm_alpha must be >= 0")
+        self.ogm, self.ogm_alpha, self.ogm_start, self.ogm_end = ogm, ogm_alpha, ogm_start, ogm_end
+        self.ogm_sigma = (config.label_high - config.label_low) / 6
+        self.ogm_log: list[dict] = []
+        self._train_features: dict[str, Tensor] | None = None
         if text != "none" and text not in TEXT_ENCODERS:
             raise ValueError(f"text must be one of {[*TEXT_ENCODERS, 'none']}")
         if audio != "none" and audio not in AUDIO_ENCODERS:
@@ -127,17 +163,74 @@ class ConcatFusion(MultimodalModel):
                             help="Pooling over time for audio-mlp and vision-mlp: mean, or mean+std+max")
         parser.add_argument("--num-layers", type=int, default=1,
                             help="Hidden blocks of text-mlp, audio-mlp and vision-mlp")
+        parser.add_argument("--ogm", choices=OGM_MODES, default="none",
+                            help="Gradient modulation: none, ogm (modulation only) or ogm-ge (+ noise)")
+        parser.add_argument("--ogm-alpha", type=float, default=0.5, help="OGM strength alpha")
+        parser.add_argument("--ogm-start", type=int, default=0, help="First modulated epoch (0-indexed)")
+        parser.add_argument("--ogm-end", type=int, default=None,
+                            help="Modulation stops before this epoch (default: never)")
+        parser.add_argument("--optimizer", choices=OPTIMIZERS, default="adam",
+                            help="adam (project default) or sgd (the OGM-GE paper)")
+        parser.add_argument("--momentum", type=float, default=0.9, help="SGD momentum")
+        parser.add_argument("--weight-decay", type=float, default=0.0)
 
     @classmethod
     def from_args(cls, config: DatasetConfig, args: argparse.Namespace) -> "ConcatFusion":
         return cls(config, args.text, args.audio, args.vision, args.hidden_dim, args.dropout,
-                   args.vision_normalization, args.pooling, args.num_layers)
+                   args.vision_normalization, args.pooling, args.num_layers,
+                   args.ogm, args.ogm_alpha, args.ogm_start, args.ogm_end)
 
     def encode(self, batch: Batch) -> dict[str, Tensor]:
         return {name: enc.encode(batch) for name, enc in self.encoders.items()}
 
     def forward(self, batch: Batch) -> Tensor:
-        return self.head(self.encode(batch))
+        features = self.encode(batch)
+        if self.ogm != "none" and self.training:
+            self._train_features = {name: f.detach() for name, f in features.items()}
+        return self.head(features)
+
+    def configure_optimizer(self, args: argparse.Namespace) -> torch.optim.Optimizer:
+        name = getattr(args, "optimizer", "adam")
+        weight_decay = getattr(args, "weight_decay", 0.0)
+        if name == "sgd":
+            return torch.optim.SGD(self.parameters(), lr=args.lr, momentum=getattr(args, "momentum", 0.9),
+                                   weight_decay=weight_decay)
+        if name == "adam":
+            return torch.optim.Adam(self.parameters(), lr=args.lr, weight_decay=weight_decay)
+        raise ValueError(f"optimizer must be one of {list(OPTIMIZERS)}")
+
+    @torch.no_grad()
+    def ogm_coefficients(self, features: dict[str, Tensor], labels: Tensor) -> tuple[dict, dict]:
+        """(rho_m, k_m) for each modality from one batch; see the class docstring."""
+        parts = self.head.contributions(features)
+        scores = {m: torch.exp(-(c - labels).square() / (2 * self.ogm_sigma ** 2)).sum().item()
+                  for m, c in parts.items()}
+        ratios, coeffs = {}, {}
+        for m, s in scores.items():
+            others = [v for n, v in scores.items() if n != m]
+            ratios[m] = s / max(sum(others) / len(others), 1e-8)
+            coeffs[m] = 1 - float(np.tanh(self.ogm_alpha * ratios[m])) if ratios[m] > 1 else 1.0
+        return ratios, coeffs
+
+    def ogm_active(self, epoch: int) -> bool:
+        return (self.ogm != "none" and len(self.encoders) > 1 and epoch >= self.ogm_start
+                and (self.ogm_end is None or epoch < self.ogm_end))
+
+    @torch.no_grad()
+    def on_after_backward(self, batch: Batch, epoch: int) -> None:
+        features, self._train_features = self._train_features, None
+        if not self.ogm_active(epoch) or features is None:
+            return
+        ratios, coeffs = self.ogm_coefficients(features, batch.labels)
+        self.ogm_log.append({"epoch": epoch, "ratio": ratios, "coeff": coeffs})
+        for m, encoder in self.encoders.items():
+            for p in encoder.parameters():
+                if p.grad is None:
+                    continue
+                noise_std = p.grad.std().item() if p.grad.numel() > 1 else 0.0
+                p.grad.mul_(coeffs[m])
+                if self.ogm == "ogm-ge":
+                    p.grad.add_(torch.randn_like(p.grad) * (noise_std + 1e-8))
 
     def contributions(self, batch: Batch) -> dict[str, Tensor]:
         """Per-modality additive parts of `forward` (e.g. for OGM-style modulation)."""

@@ -30,7 +30,7 @@ from multimodal_ml.models.audio_mlp import AudioMLP
 from multimodal_ml.models.concat_fusion import ConcatFusion
 from multimodal_ml.models.text_mlp import TextMLP
 from multimodal_ml.models.vision_mlp import VisionMLP
-from multimodal_ml.seed import set_seed
+from multimodal_ml.seed import get_device, set_seed
 
 ROOT = Path(__file__).resolve().parents[1]
 SEEDS = (1111, 1112, 1113)
@@ -70,6 +70,7 @@ def features(encoder, loader, device):
 
 def probe(encoder, loaders, seed: int, device, config) -> dict[str, float]:
     """Freeze `encoder`; train only a new Linear(feature_dim, 1); test metrics of the best-val probe."""
+    set_seed(seed)  # before reading features: the train loader's shuffle order uses the global RNG
     (x_tr, y_tr), (x_va, y_va), (x_te, y_te) = (features(encoder, l, device) for l in loaders)
     set_seed(seed)
     head = nn.Linear(x_tr.size(1), 1)
@@ -105,9 +106,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=ROOT / "results/ogm_reproduction/summary.json")
     parser.add_argument("--checkpoint-dir", type=Path, default=ROOT / "checkpoints/ogm_reproduction")
+    parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto",
+                        help="auto: CUDA when available, else CPU")
     args = parser.parse_args()
     config = get_dataset_config("mosi")
-    device = torch.device("cpu")
+    device = get_device(args.device)
+    print(f"device: {device}", flush=True)
     runs = {k: [] for k in ["fusion", *[f"{m}_alone" for m in MODALITIES],
                             *[f"{m}_alone_probe" for m in MODALITIES], *[f"{m}_joint_probe" for m in MODALITIES]]}
     for seed in SEEDS:
@@ -129,7 +133,7 @@ def main() -> None:
 
     summary = {
         "task": "CMU-MOSI overall sentiment regression; reproduction of the OGM-GE imbalance observation",
-        "seeds": list(SEEDS), "encoder": {**ENCODER, "pooling": "mean (audio/vision over real frames; text over all tokens)"},
+        "device": device.type, "seeds": list(SEEDS), "encoder": {**ENCODER, "pooling": "mean (audio/vision over real frames; text over all tokens)"},
         "training": {**TRAINING, "optimizer": "Adam", "loss": "MSE", "early_stopping": "val MAE",
                      "checkpoint": "best val MAE"},
         "probe": {**PROBE, "optimizer": "Adam", "loss": "MSE", "head": "Linear(feature_dim, 1)",

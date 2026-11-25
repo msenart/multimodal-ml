@@ -17,7 +17,7 @@ from torch.nn import functional as F
 from multimodal_ml.config import get_dataset_config
 from multimodal_ml.data import make_dataloaders
 from multimodal_ml.models import MODEL_REGISTRY
-from multimodal_ml.seed import set_seed
+from multimodal_ml.seed import get_device, set_seed
 from multimodal_ml.training import evaluate
 
 
@@ -40,9 +40,11 @@ def main() -> None:
     parser.add_argument("--num-layers", type=int, default=None)
     parser.add_argument("--pooling", choices=["mean", "stats"], default="mean")
     parser.add_argument("--seed", type=int, default=1111)
+    parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto",
+                        help="auto: CUDA when available, else CPU")
     args = parser.parse_args()
     config = get_dataset_config("mosi")
-    device = torch.device("cpu")
+    device = get_device(args.device)
     milestones = {1, 10, 25, 50, 100, 200, 400, 800, args.epochs}
     for name in args.models:
         set_seed(args.seed)

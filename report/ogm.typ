@@ -54,7 +54,7 @@ Since the head is linear, the prediction is a sum of three parts, one per modali
 
 == Encoders trained jointly, tested alone
 
-We now follow the protocol of @peng2022ogm to evaluate each encoder on its own. We freeze the encoder and train only a new linear layer on its representation $phi_m$ (Adam, at most 200 epochs, early stopping on the validation MAE). We do this for two versions of each encoder: the one trained alone, and the one trained inside the fusion. The first version is a control: its result should be close to the uni-modal model, and it is (67.69 against 67.45 for the text, for example). We also give the correlation between the part $c_m$ of the fused prediction and the label, which measures the encoder inside the fusion without any retraining.
+We now follow the protocol of @peng2022ogm to evaluate each encoder on its own. We freeze the encoder and train only a new linear layer on its representation $phi_m$ (Adam, at most 200 epochs, early stopping on the validation MAE). We do this for two versions of each encoder: the one trained alone, and the one trained inside the fusion. The first version is a control: its result should be close to the uni-modal model, and it is (67.70 against 67.45 for the text, for example). We also give the correlation between the part $c_m$ of the fused prediction and the label, which measures the encoder inside the fusion without any retraining.
 
 #figure(
   table(
@@ -64,16 +64,16 @@ We now follow the protocol of @peng2022ogm to evaluate each encoder on its own. 
     table.hline(),
     table.header([*Encoder*], [*Trained*], [*Acc-2*], [*F1*], [*Corr*]),
     table.hline(stroke: 0.5pt),
-    [Text],  [alone],               [78.43 ± 0.64], [78.46 ± 0.62], [67.69 ± 0.79],
-    [Text],  [jointly],             [77.94 ± 0.69], [77.94 ± 0.72], [66.47 ± 0.26],
+    [Text],  [alone],               [78.52 ± 0.72], [78.56 ± 0.70], [67.70 ± 0.85],
+    [Text],  [jointly],             [77.84 ± 0.77], [77.84 ± 0.80], [66.45 ± 0.23],
     [Text],  [jointly, inside fusion], [--], [--], [66.18 ± 0.28],
     table.hline(stroke: 0.3pt),
-    [Audio], [alone],               [54.66 ± 0.44], [52.37 ± 0.76], [23.38 ± 1.21],
-    [Audio], [jointly],             [54.62 ± 0.47], [52.58 ± 0.80], [22.71 ± 0.80],
+    [Audio], [alone],               [54.62 ± 0.45], [52.27 ± 0.77], [23.46 ± 1.13],
+    [Audio], [jointly],             [54.37 ± 1.27], [52.06 ± 2.18], [22.73 ± 0.87],
     [Audio], [jointly, inside fusion], [--], [--], [22.54 ± 0.56],
     table.hline(stroke: 0.3pt),
-    [Video], [alone],               [51.90 ± 1.48], [47.71 ± 2.52], [15.75 ± 2.75],
-    [Video], [jointly],             [50.29 ± 1.64], [44.45 ± 4.14], [11.96 ± 2.42],
+    [Video], [alone],               [51.70 ± 1.44], [47.26 ± 3.24], [15.93 ± 2.87],
+    [Video], [jointly],             [50.68 ± 1.55], [45.14 ± 4.13], [12.67 ± 1.92],
     [Video], [jointly, inside fusion], [--], [--], [11.36 ± 1.22],
     table.hline(),
   ),
@@ -84,8 +84,8 @@ We now follow the protocol of @peng2022ogm to evaluate each encoder on its own. 
 
 *The text dominates the fusion.* The fusion is not better than the text alone, and 95% of its prediction comes from the text. This is the same behaviour as LF-DNN and TFN in @tab-mosi, whose TAV and T results are almost identical. Our fusion is also at the same level as these two models in TAV (about 77% of Acc-2 and 66 of correlation).
 
-*The video encoder is under-trained inside the fusion.* Trained inside the fusion, the video encoder is clearly worse than when it is trained alone: its correlation drops from 15.75 to 11.96 and its F1 from 47.71 to 44.45 (@tab-ogm-probe). This is the observation of @peng2022ogm: the joint training does not let the weak modality learn as much as it could. For the audio, the drop is very small (23.38 against 22.71) and smaller than the standard deviations, so we cannot conclude. The text encoder also loses a little (67.69 against 66.47), which is coherent with the fact that the fusion is slightly below the text alone in correlation.
+*The video encoder is under-trained inside the fusion.* Trained inside the fusion, the video encoder is clearly worse than when it is trained alone: its correlation drops from 15.93 to 12.67 and its F1 from 47.26 to 45.14 (@tab-ogm-probe). This is the observation of @peng2022ogm: the joint training does not let the weak modality learn as much as it could. For the audio, the drop is very small (23.46 against 22.73) and smaller than the standard deviations, so we cannot conclude. The text encoder also loses a little (67.70 against 66.45), which is coherent with the fact that the fusion is slightly below the text alone in correlation.
 
 *Why the fusion gains nothing.* Two effects add up. First, as explained above, once the text makes the error small, the gradient that reaches the audio and video encoders is small too, and the linear layer gives them small weights. Second, on CMU-MOSI the audio and video features are poor: alone, they do not beat the majority class. Even if the imbalance were corrected, the potential gain would be limited. On this dataset, the imbalance is therefore real, but the main limit is the weak information in the non-text modalities.
 
-*Limits.* These results use only three seeds, and the differences for the audio are within the noise. Our setting is also different from the one of the paper (regression, pre-extracted features, small encoders, Adam). The next step is to apply OGM-GE to this fusion and check whether it improves the video and audio encoders, and the fusion itself.
+*Limits.* These results use only three seeds, and the differences for the audio are within the noise. Our setting is also different from the one of the paper (regression, pre-extracted features, small encoders, Adam). The next section applies OGM-GE to this fusion and checks whether it improves the video and audio encoders, and the fusion itself.
