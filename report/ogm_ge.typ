@@ -40,11 +40,12 @@ The choices, and why:
 
 == Protocol
 
-- *Same model and training* as the previous section: 3 layers of 256 units, MSE, batches of 16, at most 20 epochs, early stopping on the validation MAE.
+- *Same model and training* as the previous section: 3 layers of 256 units, MSE, batches of 16, at most 20 epochs, early stopping on the validation set.
 - *10 paired seeds.* A baseline and an OGM run with the same seed share the initialization and the batch order, so we compare them seed by seed.
-- *Two optimizers.* Adam ($10^(-3)$, as before) and SGD with momentum 0.9, the optimizer of the paper. The SGD learning rate ($3 dot 10^(-3)$) is chosen for the baseline on the validation MAE.
-- *$alpha in {0.1, 0.3, 1, 3}$*, for OM and OGM-GE. $alpha$ is selected on the validation MAE, never on the test set.
-- *Statistics.* Per seed, the difference OGM − baseline; we report its mean and a 95% bootstrap confidence interval. Primary metric: test MAE, tested with a Wilcoxon signed-rank test, Holm-corrected over the 8 conditions ($p_"Holm"$). We also give the _minimum detectable effect_ (MDE) of a paired t-test with 10 seeds (power 80%).
+- *Two optimizers.* Adam ($10^(-3)$, as before) and SGD with momentum 0.9, the optimizer of the paper. The SGD learning rate ($3 dot 10^(-3)$) is chosen for the baseline on the validation set.
+- *$alpha in {0.1, 0.3, 1, 3}$*, for OM and OGM-GE. $alpha$ is selected on the validation set (early-stopping criterion), never on the test set.
+- *Metrics*: Acc-2 (_Has0_) and weighted F1, as in the rest of the report.
+- *Statistics.* Per seed, the difference OGM − baseline; we report its mean and a 95% bootstrap confidence interval. Each metric is tested with a Wilcoxon signed-rank test, Holm-corrected over the 8 conditions of an optimizer ($p_"Holm"$). We also give the _minimum detectable effect_ (MDE) of a paired t-test with 10 seeds (power 80%).
 
 In total: 580 runs.
 
@@ -59,24 +60,27 @@ In total: 580 runs.
 
 #figure(
   table(
-    columns: (auto, auto, auto, auto, auto),
-    align: (left, left, center, center, center),
+    columns: 7,
+    align: (left, left, center, center, center, center, center),
     stroke: none,
     table.hline(),
-    table.header([*Scenario*], [*Opt.*], [*Baseline MAE*], [*OM: Δ MAE*], [*OGM-GE: Δ MAE*]),
+    table.header([], [], [], table.cell(colspan: 2)[*OM*], table.cell(colspan: 2)[*OGM-GE*]),
+    table.hline(start: 3, end: 5, stroke: 0.3pt),
+    table.hline(start: 5, end: 7, stroke: 0.3pt),
+    [*Scenario*], [*Opt.*], [*Baseline Acc-2*], [Δ Acc-2], [Δ F1], [Δ Acc-2], [Δ F1],
     table.hline(stroke: 0.5pt),
-    [Independent], [Adam], [81.10 ± 1.83], ci("−0.03", "−0.23", "+0.14"), ci("−1.51", "−2.01", "−0.95", strong: true),
-    [Independent], [SGD],  [74.60 ± 2.44], ci("+0.04", "−0.02", "+0.09"), ci("−0.18", "−0.57", "+0.23"),
-    [Redundant],   [Adam], [53.99 ± 4.72], ci("+0.19", "+0.01", "+0.46"), ci("−0.00", "−0.84", "+0.97"),
-    [Redundant],   [SGD],  [52.59 ± 3.79], ci("+0.13", "−0.02", "+0.29"), ci("+0.74", "−0.54", "+2.08"),
+    [Independent], [Adam], [70.70 ± 0.98], ci("+0.21", "−0.06", "+0.49"), ci("+0.22", "−0.06", "+0.51"), ci("+1.13", "+0.58", "+1.60"), ci("+1.13", "+0.57", "+1.61"),
+    [Independent], [SGD],  [74.44 ± 1.62], ci("−0.07", "−0.22", "+0.07"), ci("−0.07", "−0.21", "+0.07"), ci("−0.15", "−0.44", "+0.14"), ci("−0.15", "−0.44", "+0.14"),
+    [Redundant],   [Adam], [84.58 ± 2.11], ci("+0.07", "−0.02", "+0.21"), ci("+0.08", "−0.02", "+0.21"), ci("−0.04", "−0.63", "+0.69"), ci("−0.02", "−0.63", "+0.75"),
+    [Redundant],   [SGD],  [84.80 ± 1.57], ci("+0.10", "−0.04", "+0.28"), ci("+0.11", "−0.04", "+0.29"), ci("+0.01", "−0.97", "+1.11"), ci("+0.04", "−0.93", "+1.14"),
     table.hline(),
   ),
-  caption: [Synthetic control, $alpha = 0.3$ (selected on validation). OGM − baseline (× 100), mean and 95% CI over 10 seeds. Bold: significant after Holm correction ($p_"Holm" = 0.02$).],
+  caption: [Synthetic control, $alpha = 0.3$ (selected on validation). OGM − baseline (× 100), mean and 95% CI over 10 seeds. No difference is significant after Holm correction.],
 ) <tab-ogm-synth>
 
-The modulation does what it should: the text, which learns first, gets $k < 1$ ($k = 0.76$ with Adam, $alpha = 1$), and the other modalities keep $k approx 1$. But OM brings no gain (@tab-ogm-synth). The only gain (independent, Adam, +2.0 Corr) appears with GE and only with Adam: it comes from the gradient noise acting as a regularizer, not from the rebalancing.
+The modulation does what it should: the text, which learns first, gets $k < 1$ ($k = 0.76$ with Adam, $alpha = 1$), and the other modalities keep $k approx 1$. But OM brings no gain (@tab-ogm-synth). The largest effect (independent, Adam, +1.1 Acc-2) appears with GE only, and is not significant after correction ($p_"Holm" = 0.06$); if real, it comes from the gradient noise acting as a regularizer, not from the rebalancing. Strong modulation hurts: with SGD and $alpha = 3$, the Acc-2 drops by 0.8 ($p_"Holm" < 0.05$).
 
-Here the joint training does not under-train vision: a linear probe of the vision encoder gives the same correlation trained jointly (50.8), alone (51.2), and *never trained* (49.3). With low-dimensional inputs, random features are already enough for a linear probe, so *a probe must always be compared with a random encoder*.
+Here the joint training does not under-train vision: a linear probe of the vision encoder gives the same Acc-2 trained jointly (67.7), alone (68.2), and *never trained* (67.5). With low-dimensional inputs, random features are already enough for a linear probe, so *a probe must always be compared with a random encoder*.
 
 == Adam cancels most of the modulation <sec-ogm-adam>
 
@@ -117,27 +121,29 @@ With SGD, the text encoder is slowed down by about $k$. With Adam and $alpha = 3
     table.header([], [], table.cell(colspan: 2)[*Adam*], table.cell(colspan: 2)[*SGD*]),
     table.hline(start: 2, end: 4, stroke: 0.3pt),
     table.hline(start: 4, end: 6, stroke: 0.3pt),
-    [*Method*], [*$alpha$*], [Δ MAE], [Δ Corr], [Δ MAE], [Δ Corr],
+    [*Method*], [*$alpha$*], [Δ Acc-2], [Δ F1], [Δ Acc-2], [Δ F1],
     table.hline(stroke: 0.5pt),
-    [Baseline], [], [94.51 ± 1.86], [67.31 ± 0.96], [94.93 ± 2.27], [66.68 ± 1.39],
+    [Baseline], [], [78.00 ± 0.96], [78.02 ± 0.93], [77.06 ± 1.08], [77.07 ± 1.06],
     table.hline(stroke: 0.3pt),
-    [OM], [0.1 †], ci("+0.10", "−1.76", "+1.96"), ci("+0.02", "−0.74", "+0.79"), ci("−0.34", "−2.06", "+1.22"), ci("+0.84", "+0.21", "+1.50"),
-    [],   [0.3],   ci("+1.27", "−0.67", "+3.96"), ci("−0.24", "−0.81", "+0.32"), ci("−0.22", "−0.98", "+0.41"), ci("+0.59", "+0.04", "+1.29"),
-    [],   [1],     ci("+1.88", "−0.10", "+4.23"), ci("−0.47", "−1.20", "+0.17"), ci("+1.11", "−0.39", "+2.82"), ci("+0.81", "+0.24", "+1.32"),
-    [],   [3],     ci("+1.62", "−1.02", "+4.61"), ci("−0.64", "−1.53", "+0.37"), ci("+1.92", "−0.60", "+4.60"), ci("+0.73", "−0.73", "+2.09"),
+    [OM], [0.1 †], ci("−0.13", "−0.45", "+0.13"), ci("−0.13", "−0.45", "+0.12"), ci("+0.13", "−0.39", "+0.71"), ci("+0.12", "−0.39", "+0.67"),
+    [],   [0.3],   ci("−0.83", "−1.46", "−0.29"), ci("−0.84", "−1.46", "−0.30", strong: true), ci("+0.16", "−0.38", "+0.70"), ci("+0.15", "−0.38", "+0.68"),
+    [],   [1],     ci("−0.32", "−1.31", "+0.66"), ci("−0.33", "−1.31", "+0.63"), ci("+0.74", "+0.12", "+1.49"), ci("+0.75", "+0.12", "+1.49"),
+    [],   [3],     ci("−0.57", "−1.59", "+0.42"), ci("−0.58", "−1.56", "+0.37"), ci("+1.17", "+0.15", "+2.19"), ci("+1.19", "+0.19", "+2.20"),
     table.hline(stroke: 0.3pt),
-    [OGM-GE], [0.1 †], ci("+0.70", "−1.74", "+3.34"), ci("+0.45", "−0.12", "+1.08"), ci("−0.42", "−1.59", "+0.93"), ci("+0.82", "+0.21", "+1.47"),
-    [],       [0.3],   ci("+0.41", "−1.84", "+2.53"), ci("+0.12", "−1.01", "+1.14"), ci("−0.28", "−1.27", "+0.87"), ci("+0.45", "+0.00", "+0.94"),
-    [],       [1],     ci("+1.05", "−0.95", "+2.86"), ci("−0.02", "−1.00", "+0.82"), ci("+1.28", "−0.13", "+2.91"), ci("+0.27", "−0.78", "+1.11"),
-    [],       [3],     ci("+1.77", "−0.82", "+4.49"), ci("+0.14", "−0.83", "+0.95"), ci("+2.17", "+0.56", "+3.72"), ci("+1.02", "+0.17", "+1.78"),
+    [OGM-GE], [0.1 †], ci("−0.38", "−0.89", "+0.13"), ci("−0.38", "−0.89", "+0.12"), ci("+0.76", "−0.07", "+1.71"), ci("+0.75", "−0.08", "+1.72"),
+    [],       [0.3],   ci("−0.52", "−1.40", "+0.41"), ci("−0.51", "−1.37", "+0.39"), ci("+0.29", "−0.35", "+0.95"), ci("+0.30", "−0.34", "+0.96"),
+    [],       [1],     ci("−0.20", "−0.86", "+0.52"), ci("−0.18", "−0.82", "+0.55"), ci("−0.04", "−0.61", "+0.54"), ci("−0.03", "−0.59", "+0.56"),
+    [],       [3],     ci("−0.26", "−1.05", "+0.47"), ci("−0.25", "−1.00", "+0.45"), ci("+1.14", "+0.28", "+2.04"), ci("+1.17", "+0.32", "+2.06"),
     table.hline(),
   ),
-  caption: [OGM − baseline on the CMU-MOSI test set (× 100; negative Δ MAE is better). First row: absolute baseline. Mean and 95% CI over 10 paired seeds. †: $alpha$ selected on validation.],
+  caption: [OGM − baseline on the CMU-MOSI test set (× 100). First row: absolute baseline. Mean and 95% CI over 10 paired seeds. †: $alpha$ selected on validation. Bold: significant after Holm correction ($p_"Holm" = 0.03$).],
 ) <tab-ogm-mosi>
 
-*No condition improves the MAE*, the primary metric: all 16 comparisons have $p_"Holm" >= 0.29$, and the selected $alpha = 0.1$ gives a difference close to zero. Strong modulation ($alpha >= 1$) tends to hurt. The MDE is 1.2 to 4.8 MAE points, so a real gain of about 1 point could be missed.
+*With Adam, OGM-GE never helps*: every difference is negative, and OM with $alpha = 0.3$ significantly lowers the F1 (−0.84, $p_"Holm" = 0.03$).
 
-With SGD, the correlation rises by about 0.8 points. This secondary metric is not corrected for multiple tests, and it only brings SGD to the level of the Adam baseline (67.5 against 67.3).
+*With SGD, no gain is significant* (all $p_"Holm" >= 0.39$). The largest differences (+1.2 Acc-2 at $alpha = 3$) only bring SGD to the level of the Adam baseline (78.2 against 78.0). The selected $alpha = 0.1$ gives +0.1 (OM) and +0.8 (OGM-GE).
+
+The MDE is 0.5 to 1.7 points of Acc-2 or F1: a real gain of about one point could be missed.
 
 == Does OGM-GE rebalance the fusion?
 
@@ -145,27 +151,34 @@ With SGD, the correlation rises by about 0.8 points. This secondary metric is no
 
 #figure(
   table(
-    columns: 6,
-    align: (left, center, center, center, center, center),
+    columns: 7,
+    align: (left, left, center, center, center, center, center),
     stroke: none,
     table.hline(),
-    table.header([*Encoder*], [*Random*], [*Alone*], [*Joint*], [*+ OM*], [*+ OGM-GE*]),
+    table.header([*Encoder*], [], [*Random*], [*Alone*], [*Joint*], [*+ OM*], [*+ OGM-GE*]),
     table.hline(stroke: 0.5pt),
-    [Text],  [47.8 ± 2.5], [66.5 ± 0.7], [67.1 ± 0.8], [67.1 ± 1.2], [67.3 ± 0.8],
-    [Audio], [24.6 ± 1.1], [23.6 ± 1.2], [23.7 ± 0.8], [23.2 ± 0.9], [24.2 ± 1.0],
-    [Video], [12.5 ± 4.6], [12.8 ± 3.1], [14.1 ± 3.2], [14.9 ± 3.1], [14.7 ± 3.7],
+    [Text],  [Acc-2], [68.4 ± 1.7], [77.0 ± 0.7], [77.8 ± 0.7], [77.3 ± 1.0], [77.7 ± 0.5],
+    [],      [F1],    [68.4 ± 1.7], [76.9 ± 0.7], [77.8 ± 0.7], [77.3 ± 1.0], [77.7 ± 0.5],
+    table.hline(stroke: 0.3pt),
+    [Audio], [Acc-2], [53.6 ± 0.7], [54.0 ± 0.7], [54.5 ± 0.8], [54.6 ± 0.6], [54.8 ± 0.7],
+    [],      [F1],    [50.0 ± 1.0], [51.1 ± 1.1], [52.2 ± 1.2], [52.4 ± 0.9], [52.6 ± 1.1],
+    table.hline(stroke: 0.3pt),
+    [Video], [Acc-2], [49.9 ± 1.6], [52.7 ± 1.5], [51.0 ± 1.1], [51.7 ± 0.5], [50.9 ± 1.1],
+    [],      [F1],    [43.3 ± 3.9], [*50.6 ± 2.6*], [44.6 ± 2.3], [46.2 ± 1.9], [45.1 ± 2.3],
     table.hline(),
   ),
-  caption: [Linear probe of each encoder on the CMU-MOSI test set (Corr × 100, 10 seeds, Adam, $alpha = 0.1$). Random: initial weights, never trained.],
+  caption: [Linear probe of each encoder on the CMU-MOSI test set (× 100, 10 seeds, Adam, $alpha = 0.1$). Random: initial weights, never trained. Always predicting the majority class gives an Acc-2 of 55.25.],
 ) <tab-ogm-probe10>
 
-*The audio and video encoders learn nothing useful*, alone or jointly: a linear layer on _random_ features does as well (@tab-ogm-probe10). Only the text encoder learns (47.8 → 66.5). With 10 seeds, the drop of the jointly trained video encoder seen with 3 seeds (@tab-ogm-probe) disappears (14.1 jointly, 12.8 alone). There is no under-trained encoder for OGM-GE to fix.
+*Audio and video stay below the majority class.* No audio or video probe, trained or not, reaches the Acc-2 of the majority class (55.25). Only the text encoder learns something useful (Acc-2 68.4 → 77.0).
 
-*How much can audio and video add?* A linear regression on the predictions of the three uni-modal models, fitted on validation, improves the MAE over the text alone by 2.0 points [1.4, 2.5], but the correlation by only 0.11 [−0.20, +0.41]. Our fusion already reaches this level. The room for improvement is very small.
+*The video encoder is under-trained inside the fusion, but at chance level.* Its F1 is 6.1 points lower trained jointly than alone ([−7.9, −4.4], 10 paired seeds), and no better than a random encoder (@tab-ogm-probe10). This confirms with 10 seeds the drop of @tab-ogm-probe. OM recovers part of it (+1.3 to +2.9 F1 with Adam), but the video stays below the majority class and its share in the fusion does not grow, so the fusion does not benefit.
+
+*How much can audio and video add?* A linear regression on the predictions of the three uni-modal models, fitted on validation, improves over the text alone by only 0.7 Acc-2 [0.3, 1.0] and 0.7 F1 [0.3, 1.0]. It reaches 77.6 Acc-2, below our fusion without OGM (78.0). The room for improvement is very small.
 
 == Conclusion
 
-- On CMU-MOSI, OGM-GE brings *no significant gain* to the concatenation fusion, with Adam or SGD, for any $alpha$.
-- The cause is not the optimization imbalance targeted by the paper: the audio and video features carry very little information, and even an optimal combination of uni-modal models barely beats the text.
+- On CMU-MOSI, OGM-GE brings *no significant gain* to the concatenation fusion, with Adam or SGD, for any $alpha$; with Adam it can even hurt.
+- The imbalance targeted by the paper exists (the video encoder is under-trained inside the fusion), but it concerns a modality at chance level: correcting it cannot improve the fusion, and even an optimal combination of uni-modal models barely beats the text.
 - *With Adam, the modulation is mostly cancelled*; OGM-GE with Adam mostly tests the GE noise.
-- *Limits*: one dataset, small encoders on pre-extracted features, effects below the MDE (1 to 5 MAE points) cannot be excluded.
+- *Limits*: one dataset, small encoders on pre-extracted features, effects below the MDE (0.5 to 1.7 points) cannot be excluded.

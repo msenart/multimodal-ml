@@ -8,8 +8,10 @@ Statistics (n = 10 paired seeds): difference OGM - baseline per seed (same seed,
 initialisation and same data order); mean with a 95% bootstrap CI over seeds (10,000
 resamples); two-sided Wilcoxon signed-rank test, Holm-corrected over the 8 OGM conditions
 of an optimizer; minimum detectable effect (MDE) of a paired t-test, two-sided 5% level,
-80% power: (t_0.975 + t_0.80) * sd(diff) / sqrt(n). Primary metric: test MAE (the
-early-stopping and selection criterion). alpha is selected on the mean validation MAE.
+80% power: (t_0.975 + t_0.80) * sd(diff) / sqrt(n). Reported metrics: Acc-2 (Has0) and
+weighted F1, as in the rest of the report; each is Holm-corrected separately. alpha is
+selected on the mean validation MAE (the early-stopping criterion, the only validation
+score saved for every run).
 """
 from __future__ import annotations
 
@@ -21,11 +23,14 @@ from pathlib import Path
 import numpy as np
 from scipy import stats
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import accuracy_score, f1_score
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "results/ogm_ge"
 MODALITIES = ("text", "audio", "vision")
 REPORTED = ("mae", "corr", "acc2_has0", "f1_has0")
+TESTED = ("acc2_has0", "f1_has0")  # Holm-corrected metrics
+PROBED = ("acc2_has0", "f1_has0", "corr")
 
 
 RUNS = OUT / "runs"
@@ -72,8 +77,15 @@ def test_metric(runs: dict[int, dict], key: str) -> dict[int, float]:
     return {s: r["test"][key] for s, r in runs.items()}
 
 
-def probe_metric(runs: dict[int, dict], modality: str) -> dict[int, float]:
-    return {s: r["probe"][modality]["corr"] for s, r in runs.items()}
+def probe_metric(runs: dict[int, dict], modality: str, key: str = "corr") -> dict[int, float]:
+    return {s: r["probe"][modality][key] for s, r in runs.items()}
+
+
+def binary(pred: np.ndarray, label: np.ndarray) -> dict[str, float]:
+    """Acc-2 / weighted F1 (Has0), as multimodal_ml.metrics."""
+    truth, guess = label >= 0, pred >= 0
+    return {"acc2_has0": float(accuracy_score(truth, guess)),
+            "f1_has0": float(f1_score(truth, guess, average="weighted"))}
 
 
 def condition_grid(runs, data: str, optimizer: str, lr: float) -> dict:
@@ -88,18 +100,21 @@ def condition_grid(runs, data: str, optimizer: str, lr: float) -> dict:
                 "text_share": mean_sd([r["test"]["text_share"] for r in rs.values()]),
                 "k_text": mean_sd([np.mean([h["k_text"] for h in r["history"]]) for r in rs.values()]),
                 **{m: mean_sd(list(test_metric(rs, m).values())) for m in REPORTED},
-                "probe": {m: mean_sd(list(probe_metric(rs, m).values())) for m in MODALITIES}}
+                "probe": {m: {k: mean_sd(list(probe_metric(rs, m, k).values())) for k in PROBED}
+                          for m in MODALITIES}}
 
     grid = {"baseline": describe(base), "conditions": {}}
     for mode, alpha in conditions:
         rs = select(runs, **common, mode=mode, alpha=alpha)
         entry = describe(rs)
         entry["diff"] = {m: paired(test_metric(base, m), test_metric(rs, m)) for m in REPORTED}
-        entry["diff_probe"] = {m: paired(probe_metric(base, m), probe_metric(rs, m)) for m in MODALITIES}
+        entry["diff_probe"] = {m: {k: paired(probe_metric(base, m, k), probe_metric(rs, m, k)) for k in PROBED}
+                               for m in MODALITIES}
         grid["conditions"][f"{mode}@{alpha:g}"] = entry
     keys = list(grid["conditions"])
-    for key, p in zip(keys, holm([grid["conditions"][k]["diff"]["mae"]["p"] for k in keys])):
-        grid["conditions"][key]["diff"]["mae"]["p_holm"] = p
+    for metric in TESTED:
+        for key, p in zip(keys, holm([grid["conditions"][k]["diff"][metric]["p"] for k in keys])):
+            grid["conditions"][key]["diff"][metric]["p_holm"] = p
     for mode in sorted({k.split("@")[0] for k in keys}):
         candidates = [k for k in keys if k.startswith(mode + "@")]
         grid[f"selected_{mode}"] = min(candidates, key=lambda k: grid["conditions"][k]["val_mae"]["mean"])
@@ -140,30 +155,31 @@ def stacking(runs, data: str = "mosi") -> dict:
             p = fit.predict(pred["test"][:, cols])
             scores[name][s] = {"mae": float(np.mean(np.abs(p - label["test"]))),
                                "corr": float(np.corrcoef(p, label["test"])[0, 1]),
-                               "weights": fit.coef_.tolist()}
+                               **binary(p, label["test"]), "weights": fit.coef_.tolist()}
     out = {}
     for name in ("T", "TAV"):
-        out[name] = {k: mean_sd([scores[name][s][k] for s in seeds]) for k in ("mae", "corr")}
+        out[name] = {k: mean_sd([scores[name][s][k] for s in seeds]) for k in REPORTED}
         out[name]["weights"] = np.mean([scores[name][s]["weights"] for s in seeds], axis=0).tolist()
     out["TAV-T"] = {k: paired({s: scores["T"][s][k] for s in seeds}, {s: scores["TAV"][s][k] for s in seeds})
-                    for k in ("mae", "corr")}
-    out["alone"] = {m: {k: mean_sd(list(test_metric(uni[m], k).values())) for k in ("mae", "corr")}
+                    for k in REPORTED}
+    out["alone"] = {m: {k: mean_sd(list(test_metric(uni[m], k).values())) for k in REPORTED}
                     for m in MODALITIES}
     return out
 
 
 def probes_alone(runs, data: str) -> dict:
-    out = {"random": {}, "alone": {}}
+    """Probes of random and alone-trained encoders, and paired comparisons with the joint (Adam baseline) ones."""
+    out = {"random": {}, "alone": {}, "joint-alone": {}, "joint-random": {}, "alone-random": {}}
     rand = select(runs, data=data, kind="random")
+    joint = select(runs, data=data, kind="fusion", optimizer="adam", lr=1e-3, mode="none")
     for m in MODALITIES:
-        out["random"][m] = mean_sd(list(probe_metric(rand, m).values()))
-        alone = {}
-        for r in runs:
-            sp = r["spec"]
-            if sp["data"] == data and sp["kind"] == "unimodal" and sp["modality"] == m and sp["optimizer"] == "adam":
-                alone[sp["seed"]] = r["probe"][m]["corr"]
+        out["random"][m] = {k: mean_sd(list(probe_metric(rand, m, k).values())) for k in PROBED}
+        alone = select(runs, data=data, kind="unimodal", modality=m, optimizer="adam")
         if alone:
-            out["alone"][m] = mean_sd(list(alone.values()))
+            out["alone"][m] = {k: mean_sd(list(probe_metric(alone, m, k).values())) for k in PROBED}
+            for name, (a, b) in {"joint-alone": (alone, joint), "joint-random": (rand, joint),
+                                 "alone-random": (rand, alone)}.items():
+                out[name][m] = {k: paired(probe_metric(a, m, k), probe_metric(b, m, k)) for k in PROBED}
     return out
 
 
@@ -198,8 +214,8 @@ def main() -> None:
             uni = select(runs, data=scenario, kind="unimodal", modality="vision", optimizer=opt)
             summary["synthetic"][scenario][opt] = {
                 "grid": condition_grid(runs, scenario, opt, lr), "mechanism": mechanism(runs, scenario, opt, lr),
-                "vision_alone": {k: mean_sd(list(test_metric(uni, k).values())) for k in ("mae", "corr")},
-                "vision_alone_probe": mean_sd([r["probe"]["vision"]["corr"] for r in uni.values()])}
+                "vision_alone": {k: mean_sd(list(test_metric(uni, k).values())) for k in REPORTED},
+                "vision_alone_probe": {k: mean_sd(list(probe_metric(uni, "vision", k).values())) for k in PROBED}}
     args.summary.write_text(json.dumps(summary, indent=2) + "\n")
 
     print(f"{len(runs)} runs, diverged: {diverged}")
@@ -210,38 +226,42 @@ def main() -> None:
             g = block[opt]["grid"]
             print(f"\n=== {data} / {opt} (x100) ===  selected: ogm={g.get('selected_ogm')} ogm-ge={g.get('selected_ogm-ge')}")
             b = g["baseline"]
-            print(f"{'baseline':10s} valMAE {fmt(b['val_mae'])} | MAE {fmt(b['mae'])} | Corr {fmt(b['corr'])} | "
-                  f"Acc2 {fmt(b['acc2_has0'])} | F1 {fmt(b['f1_has0'])} | Tshare {fmt(b['text_share'])}")
+            print(f"{'baseline':10s} Acc2 {fmt(b['acc2_has0'])} | F1 {fmt(b['f1_has0'])} | Corr {fmt(b['corr'])} | "
+                  f"MAE {fmt(b['mae'])} | Tshare {fmt(b['text_share'])}")
             for key, c in g["conditions"].items():
                 d = c["diff"]
-                print(f"{key:10s} valMAE {fmt(c['val_mae'])} | k_T {c['k_text']['mean']:.3f} | "
-                      f"dMAE {fmt_diff(d['mae'])} pHolm {d['mae']['p_holm']:.3f} MDE {d['mae']['mde'] * 100:.2f} | "
-                      f"dCorr {fmt_diff(d['corr'])} | dAcc2 {fmt_diff(d['acc2_has0'])} | "
-                      f"dProbeV {fmt_diff(c['diff_probe']['vision'])} | Tshare {fmt(c['text_share'])}")
+                print(f"{key:10s} k_T {c['k_text']['mean']:.3f} | " + " | ".join(
+                    f"d{name} {fmt_diff(d[m])} pHolm {d[m]['p_holm']:.3f} MDE {d[m]['mde'] * 100:.2f}"
+                    for name, m in (("Acc2", "acc2_has0"), ("F1", "f1_has0")))
+                      + f" | dProbeV F1 {fmt_diff(c['diff_probe']['vision']['f1_has0'])}"
+                      + f" | dCorr {fmt_diff(d['corr'])} | dMAE {fmt_diff(d['mae'])} | Tshare {fmt(c['text_share'])}")
             print("mechanism (OM only, first 5 epochs): alpha -> mean k / path ratio per modality")
             for alpha, mech in block[opt]["mechanism"].items():
                 print(f"  {alpha:>4s}: " + "  ".join(
                     f"{m} k {mech[m]['k']['mean']:.3f} path {mech[m]['path_ratio']['mean']:.3f}±"
                     f"{mech[m]['path_ratio']['sd']:.3f}" for m in MODALITIES))
     pr = summary["mosi"]["probes"]
-    print("\n=== MOSI probes (corr x100) ===")
-    for m in MODALITIES:
-        print(f"{m:7s} random {fmt(pr['random'][m])} | alone {fmt(pr['alone'][m])} | "
-              + " | ".join(f"joint {o} base {fmt(summary['mosi'][o]['grid']['baseline']['probe'][m])}" for o in optim))
+    for k in PROBED:
+        print(f"\n=== MOSI probes ({k} x100, joint = Adam baseline / OM@0.1 / OGM-GE@0.1) ===")
+        a = summary["mosi"]["adam"]["grid"]
+        for m in MODALITIES:
+            print(f"{m:7s} joint-alone {fmt_diff(pr['joint-alone'][m][k])} | random {fmt(pr['random'][m][k])} | "
+                  f"alone {fmt(pr['alone'][m][k])} | "
+                  f"joint {fmt(a['baseline']['probe'][m][k])} | OM {fmt(a['conditions']['ogm@0.1']['probe'][m][k])} | "
+                  f"OGM-GE {fmt(a['conditions']['ogm-ge@0.1']['probe'][m][k])}")
     st = summary["mosi"]["stacking"]
     print("\n=== MOSI stacking (x100) ===")
     for k in ("T", "TAV"):
-        print(f"{k:4s} MAE {fmt(st[k]['mae'])} Corr {fmt(st[k]['corr'])} weights {np.round(st[k]['weights'], 3)}")
-    print(f"TAV-T dMAE {fmt_diff(st['TAV-T']['mae'])} dCorr {fmt_diff(st['TAV-T']['corr'])}")
-    print("alone:", {m: (fmt(st['alone'][m]['mae']), fmt(st['alone'][m]['corr'])) for m in MODALITIES})
+        print(f"{k:4s} " + " ".join(f"{m} {fmt(st[k][m])}" for m in REPORTED))
+    print("TAV-T " + " ".join(f"d{m} {fmt_diff(st['TAV-T'][m])}" for m in REPORTED))
     for s in ("independent", "redundant"):
         sy = summary["synthetic"][s]
-        print(f"\n=== synthetic {s}: vision probe random {fmt(sy['probes']['random']['vision'])}")
+        print(f"\n=== synthetic {s}: vision probe (acc2 / corr) random "
+              f"{fmt(sy['probes']['random']['vision']['acc2_has0'])} / {fmt(sy['probes']['random']['vision']['corr'])}")
         for opt in ("adam", "sgd"):
-            print(f"  {opt}: vision alone corr {fmt(sy[opt]['vision_alone']['corr'])}, "
-                  f"alone probe {fmt(sy[opt]['vision_alone_probe'])}, "
-                  f"joint base probe {fmt(sy[opt]['grid']['baseline']['probe']['vision'])}")
-
+            jp = sy[opt]["grid"]["baseline"]["probe"]["vision"]
+            print(f"  {opt}: alone probe {fmt(sy[opt]['vision_alone_probe']['acc2_has0'])} / "
+                  f"{fmt(sy[opt]['vision_alone_probe']['corr'])}, joint probe {fmt(jp['acc2_has0'])} / {fmt(jp['corr'])}")
 
 if __name__ == "__main__":
     main()

@@ -26,20 +26,20 @@ All models are trained the same way: mean squared error, Adam with a learning ra
 
 #figure(
   table(
-    columns: 5,
-    align: (left, center, center, center, center),
+    columns: 4,
+    align: (left, center, center, center),
     stroke: none,
     table.hline(),
-    table.header([*Model*], [*Acc-2*], [*F1*], [*Corr*], [*MAE*]),
+    table.header([*Model*], [*Acc-2*], [*F1*], [*Corr*]),
     table.hline(stroke: 0.5pt),
-    [Text alone (T)],    [*77.50 ± 0.59*], [*77.56 ± 0.58*], [*67.45 ± 1.35*], [96.82 ± 1.03],
-    [Audio alone (A)],   [54.66 ± 2.59], [51.72 ± 5.15], [23.62 ± 0.95], [143.18 ± 4.38],
-    [Video alone (V)],   [52.67 ± 1.13], [49.06 ± 2.78], [15.99 ± 3.04], [143.99 ± 1.37],
+    [Text alone (T)],    [*77.50 ± 0.59*], [*77.56 ± 0.58*], [*67.45 ± 1.35*],
+    [Audio alone (A)],   [54.66 ± 2.59], [51.72 ± 5.15], [23.62 ± 0.95],
+    [Video alone (V)],   [52.67 ± 1.13], [49.06 ± 2.78], [15.99 ± 3.04],
     table.hline(stroke: 0.3pt),
-    [Concatenation fusion (TAV)], [77.45 ± 0.72], [77.48 ± 0.74], [66.29 ± 0.27], [*95.47 ± 1.20*],
+    [Concatenation fusion (TAV)], [77.45 ± 0.72], [77.48 ± 0.74], [66.29 ± 0.27],
     table.hline(),
   ),
-  caption: [Uni-modal encoders and concatenation fusion on the CMU-MOSI test set (Acc-2 _Has0_, weighted F1, Corr × 100, MAE × 100). Mean ± standard deviation over 3 seeds. Always predicting the majority class gives an Acc-2 of 55.25.],
+  caption: [Uni-modal encoders and concatenation fusion on the CMU-MOSI test set (Acc-2 _Has0_, weighted F1, Corr × 100). Mean ± standard deviation over 3 seeds. Always predicting the majority class gives an Acc-2 of 55.25.],
 ) <tab-ogm-models>
 
 @tab-ogm-models (top) gives the results of the encoders trained alone. They are close to those of the MMSA models in @tab-mosi. The text is by far the most useful modality. The audio and the video carry a weak signal (correlations of 23.6 and 16.0), but their Acc-2 stays below the majority class.
@@ -48,7 +48,7 @@ All models are trained the same way: mean squared error, Adam with a learning ra
 
 The fusion model contains the three encoders described above. Their representations are concatenated into a vector of $3 times 256$ values, and one linear layer predicts the score (@eq-concat). This is the concatenation model of @peng2022ogm. The whole model is trained from scratch, with the same procedure and the same seeds as the uni-modal models.
 
-The fusion reaches the same level as the text alone (@tab-ogm-models, bottom): 77.45% of Acc-2 against 77.50%, and a slightly lower correlation (66.29 against 67.45). Only the MAE is a little better. Adding the audio and the video therefore brings almost nothing.
+The fusion reaches the same level as the text alone (@tab-ogm-models, bottom): 77.45% of Acc-2 against 77.50%, and a slightly lower correlation (66.29 against 67.45). Adding the audio and the video therefore brings almost nothing.
 
 Since the head is linear, the prediction is a sum of three parts, one per modality: $hat(y) = c_T + c_A + c_V$, with $c_m = W_m phi_m + b \/ 3$. This lets us see how much each modality is used inside the fusion. We measure the _share_ of each modality: the variance of $c_m$ over the test set, divided by the sum of the three variances. The text gets $95.3 ± 2.7%$ of the share, the video $3.8 ± 2.7%$ and the audio $1.0 ± 0.3%$. The prediction of the fusion therefore depends almost only on the text.
 
@@ -84,7 +84,7 @@ We now follow the protocol of @peng2022ogm to evaluate each encoder on its own. 
 
 *The text dominates the fusion.* The fusion is not better than the text alone, and 95% of its prediction comes from the text. This is the same behaviour as LF-DNN and TFN in @tab-mosi, whose TAV and T results are almost identical. Our fusion is also at the same level as these two models in TAV (about 77% of Acc-2 and 66 of correlation).
 
-*The video encoder is under-trained inside the fusion.* Trained inside the fusion, the video encoder is clearly worse than when it is trained alone: its correlation drops from 15.75 to 11.96 and its F1 from 47.71 to 44.45 (@tab-ogm-probe). This is the observation of @peng2022ogm: the joint training does not let the weak modality learn as much as it could. (With 10 seeds and a random-encoder control, this drop disappears: see @sec-ogm-ge.) For the audio, the drop is very small (23.38 against 22.71) and smaller than the standard deviations, so we cannot conclude. The text encoder also loses a little (67.69 against 66.47), which is coherent with the fact that the fusion is slightly below the text alone in correlation.
+*The video encoder is under-trained inside the fusion.* Trained inside the fusion, the video encoder is clearly worse than when it is trained alone: its correlation drops from 15.75 to 11.96 and its F1 from 47.71 to 44.45 (@tab-ogm-probe). This is the observation of @peng2022ogm: the joint training does not let the weak modality learn as much as it could. (@sec-ogm-ge confirms the F1 drop with 10 seeds, but not the correlation drop, and shows that the video encoder stays at chance level.) For the audio, the drop is very small (23.38 against 22.71) and smaller than the standard deviations, so we cannot conclude. The text encoder also loses a little (67.69 against 66.47), which is coherent with the fact that the fusion is slightly below the text alone in correlation.
 
 *Why the fusion gains nothing.* Two effects add up. First, as explained above, once the text makes the error small, the gradient that reaches the audio and video encoders is small too, and the linear layer gives them small weights. Second, on CMU-MOSI the audio and video features are poor: alone, they do not beat the majority class. Even if the imbalance were corrected, the potential gain would be limited. On this dataset, the imbalance is therefore real, but the main limit is the weak information in the non-text modalities.
 
