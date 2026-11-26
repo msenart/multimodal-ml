@@ -1,4 +1,5 @@
-"""Concatenation fusion with a linear head; optional OGM-GE training (see multimodal_ml/ogm_ge.py)."""
+"""Concatenation fusion with a linear head; optional OGM-GE training (multimodal_ml/ogm_ge.py) and
+uni-modal aids (multimodal_ml/unimodal.py)."""
 from __future__ import annotations
 
 import argparse
@@ -8,7 +9,7 @@ import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
 
-from multimodal_ml import ogm_ge
+from multimodal_ml import ogm_ge, unimodal
 from multimodal_ml.config import DatasetConfig
 from multimodal_ml.data import Batch
 from multimodal_ml.metrics import compute_contribution_metrics
@@ -82,6 +83,9 @@ class ConcatFusion(MultimodalModel):
                  vision: str = "vision-mlp", hidden_dim: int = 64, dropout: float = 0.3,
                  vision_normalization: str = "train_zscore", pooling: str = "mean", num_layers: int = 1):
         super().__init__(config)
+        self._init_kwargs = dict(text=text, audio=audio, vision=vision, hidden_dim=hidden_dim, dropout=dropout,
+                                 vision_normalization=vision_normalization, pooling=pooling, num_layers=num_layers)
+        self.frozen_encoders = False
         if text != "none" and text not in TEXT_ENCODERS:
             raise ValueError(f"text must be one of {[*TEXT_ENCODERS, 'none']}")
         if audio != "none" and audio not in AUDIO_ENCODERS:
@@ -129,11 +133,30 @@ class ConcatFusion(MultimodalModel):
         parser.add_argument("--num-layers", type=int, default=1,
                             help="Hidden blocks of text-mlp, audio-mlp and vision-mlp")
         ogm_ge.add_cli_args(parser)
+        unimodal.add_cli_args(parser)
 
     @classmethod
     def from_args(cls, config: DatasetConfig, args: argparse.Namespace) -> "ConcatFusion":
         return cls(config, args.text, args.audio, args.vision, args.hidden_dim, args.dropout,
                    args.vision_normalization, args.pooling, args.num_layers)
+
+    def unimodal_copy(self, modality: str) -> "ConcatFusion":
+        """Same model with `modality` only (used by --unimodal-pretrain)."""
+        kwargs = {**self._init_kwargs, **{m: "none" for m in ("text", "audio", "vision") if m != modality}}
+        return ConcatFusion(self.config, **kwargs)
+
+    def freeze_encoders(self) -> None:
+        """Freeze the encoders and keep them in eval mode (no dropout): only the head is trained."""
+        self.frozen_encoders = True
+        for p in self.encoders.parameters():
+            p.requires_grad_(False)
+        self.encoders.eval()
+
+    def train(self, mode: bool = True) -> "ConcatFusion":
+        super().train(mode)
+        if self.frozen_encoders:
+            self.encoders.eval()
+        return self
 
     def encode(self, batch: Batch) -> dict[str, Tensor]:
         return {name: enc.encode(batch) for name, enc in self.encoders.items()}

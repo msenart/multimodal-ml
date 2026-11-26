@@ -38,6 +38,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
+from multimodal_ml import unimodal
 from multimodal_ml.checkpoint import EarlyStopper, save_checkpoint
 from multimodal_ml.training import (
     Loaders, evaluate, format_metrics, print_metrics_table, print_run_summary, say, setup_logging,
@@ -146,12 +147,14 @@ def _flat(module: torch.nn.Module) -> Tensor:
 
 
 def _grad_norm(module: torch.nn.Module) -> float:
-    return float(torch.sqrt(sum(p.grad.square().sum() for p in module.parameters() if p.grad is not None)))
+    grads = [p.grad.square().sum() for p in module.parameters() if p.grad is not None]
+    return float(torch.stack(grads).sum().sqrt()) if grads else 0.0  # no gradient: frozen encoder
 
 
 def train(model, loaders: Loaders, device: torch.device, args: argparse.Namespace,
           verbose: bool = True) -> tuple[dict[str, float], list[dict]]:
-    """Train/validate/early-stop/test like training.default_routine, with optional OGM(-GE).
+    """Train/validate/early-stop/test like training.default_routine, with optional OGM(-GE)
+    and the optional uni-modal aids of multimodal_ml/unimodal.py.
 
     With --ogm none and --optimizer adam the computation is the same as default_routine
     (tested in tests/test_ogm_ge.py). Returns (test metrics of the best-val-MAE model,
@@ -160,6 +163,9 @@ def train(model, loaders: Loaders, device: torch.device, args: argparse.Namespac
     update per step (to measure what the optimizer does with the modulated gradient).
     """
     settings = OGMSettings.from_args(args)
+    aids = unimodal.UnimodalSettings.from_args(args)
+    if aids.pretrain != "none":  # before the optimizer, so frozen encoders get no update
+        model.pretrain_history = unimodal.pretrain_encoders(model, loaders, device, args)
     train_loader, valid_loader, test_loader = loaders
     encoders = dict(model.encoders.items())
     optimizer = make_optimizer(model.parameters(), args.lr, settings)
@@ -180,8 +186,10 @@ def train(model, loaders: Loaders, device: torch.device, args: argparse.Namespac
         for batch in train_loader:
             batch = batch.to(device)
             features = model.encode(batch)
-            preds = model.head(features)
+            preds = model.head(unimodal.drop_text(features, aids.text_dropout))
             loss = F.mse_loss(preds, batch.labels)
+            if aids.aux_weight > 0:
+                loss = loss + aids.aux_weight * unimodal.aux_loss(encoders, features, batch.labels)
             if not torch.isfinite(loss):
                 diverged = True
                 break

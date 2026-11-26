@@ -176,9 +176,27 @@ The MDE is 0.5 to 1.7 points of Acc-2 or F1: a real gain of about one point coul
 
 *How much can audio and video add?* A linear regression on the predictions of the three uni-modal models, fitted on validation, improves over the text alone by only 0.7 Acc-2 [0.3, 1.0] and 0.7 F1 [0.3, 1.0]. It reaches 77.6 Acc-2, below our fusion without OGM (78.0). The room for improvement is very small.
 
+== Why OGM-GE does not help here
+
+OGM-GE rests on one assumption: the weak modalities _contain_ useful information, but learn it too slowly because the dominant one reduces the loss first. Our measures suggest that this assumption does not hold on CMU-MOSI with our features. We see four reasons, from the most to the least likely.
+
++ *Audio and video carry almost no polarity information.* No audio or video probe reaches the majority class, even trained alone, and an optimal combination of the uni-modal models gains only 0.7 point over the text. Speeding up the learning of a modality cannot help if that modality has nothing to learn. On the datasets of the paper (CREMA-D, Kinetics-Sounds), each modality alone is far above chance.
++ *Our encoders lose the temporal information.* We average the audio (COVAREP) and video (Facet) features over the whole clip. The cues of sentiment are often short (a smile, a change of pitch), and the mean erases them.
++ *The text is very strong and the dataset is small.* The text features alone give 77% Acc-2; with about 1,300 training clips, the weak encoders overfit before they learn anything general. The room left for the other modalities is small.
++ *Our training differs from the paper's.* The paper trains large encoders from raw signals for many epochs with SGD, where the imbalance has time to build up. We train small encoders on pre-extracted features for at most 20 epochs, mostly with Adam, which cancels most of the modulation (@sec-ogm-adam).
+
+The adaptation to regression is not a likely cause: on synthetic data, the modulation slows down the dominant modality as intended.
+
 == Conclusion
 
 - On CMU-MOSI, OGM-GE brings *no significant gain* to the concatenation fusion, with Adam or SGD, for any $alpha$; with Adam it can even hurt.
-- The imbalance targeted by the paper exists (the video encoder is under-trained inside the fusion), but it concerns a modality at chance level: correcting it cannot improve the fusion, and even an optimal combination of uni-modal models barely beats the text.
+- The imbalance targeted by the paper exists (the video encoder is under-trained inside the fusion), but it concerns a modality at chance level: correcting it cannot improve the fusion.
 - *With Adam, the modulation is mostly cancelled*; OGM-GE with Adam mostly tests the GE noise.
 - *Limits*: one dataset, small encoders on pre-extracted features, effects below the MDE (0.5 to 1.7 points) cannot be excluded.
+
+== Perspectives
+
+OGM-GE acts on the _speed_ at which each encoder learns. Since our weak encoders seem to lack information rather than speed, two directions look more promising.
+
+- *Make each encoder learn on its own.* Rather than slowing down the text, one can give every encoder its own objective: an auxiliary uni-modal loss on each encoder, a uni-modal pretraining of each encoder before the fusion @du2023unimodal, or a modality dropout that hides the text during training and forces the fusion to use the other modalities. These methods target directly the under-training of the video encoder that we measured.
+- *Give the weak modalities more information.* Sequence encoders (recurrent or attention-based) instead of a mean over time, or richer pre-trained features, should first bring the audio and video probes above the majority class. Only then can a rebalancing method like OGM-GE be expected to help. Running our implementation on a dataset where every modality is informative, such as CREMA-D, would also confirm that the negative result comes from the data and not from the method.
