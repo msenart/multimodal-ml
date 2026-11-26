@@ -1,4 +1,4 @@
-"""A minimal differentiable fusion head, not an OGM implementation."""
+"""Concatenation fusion with a linear head; optional OGM-GE training (see multimodal_ml/ogm_ge.py)."""
 from __future__ import annotations
 
 import argparse
@@ -8,6 +8,7 @@ import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
 
+from multimodal_ml import ogm_ge
 from multimodal_ml.config import DatasetConfig
 from multimodal_ml.data import Batch
 from multimodal_ml.metrics import compute_contribution_metrics
@@ -127,6 +128,7 @@ class ConcatFusion(MultimodalModel):
                             help="Pooling over time for audio-mlp and vision-mlp: mean, or mean+std+max")
         parser.add_argument("--num-layers", type=int, default=1,
                             help="Hidden blocks of text-mlp, audio-mlp and vision-mlp")
+        ogm_ge.add_cli_args(parser)
 
     @classmethod
     def from_args(cls, config: DatasetConfig, args: argparse.Namespace) -> "ConcatFusion":
@@ -160,4 +162,6 @@ class ConcatFusion(MultimodalModel):
         for encoder in self.encoders.values():
             if hasattr(encoder, "fit_normalizer"):
                 encoder.fit_normalizer(loaders[0])
-        return super().training_routine(loaders, device, args)
+        # --ogm none + --optimizer adam is the same computation as training.default_routine.
+        metrics, self.training_history = ogm_ge.train(self, loaders, device, args)
+        return metrics

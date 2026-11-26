@@ -1,0 +1,105 @@
+580 runs, diverged: []
+SGD learning rate (mean best val MAE): {'val_mae': {'0.001': 0.9076374282336523, '0.003': 0.9015563332243909, '0.01': 0.9089294668563589}, 'selected': 0.003}
+
+=== mosi / adam (x100) ===  selected: ogm=ogm@0.1 ogm-ge=ogm-ge@0.1
+baseline   valMAE 89.38 ± 1.48 | MAE 94.51 ± 1.86 | Corr 67.31 ± 0.96 | Acc2 78.00 ± 0.96 | F1 78.02 ± 0.93 | Tshare 96.04 ± 1.67
+ogm@0.1    valMAE 89.78 ± 1.93 | k_T 0.948 | dMAE +0.10 [-1.76, +1.96] pHolm 1.000 MDE 3.17 | dCorr +0.02 [-0.74, +0.79] | dAcc2 -0.13 [-0.45, +0.13] | dProbeV +0.84 [+0.23, +1.43] | Tshare 96.27 ± 1.10
+ogm@0.3    valMAE 90.09 ± 2.26 | k_T 0.850 | dMAE +1.27 [-0.67, +3.96] pHolm 1.000 MDE 4.00 | dCorr -0.24 [-0.81, +0.32] | dAcc2 -0.83 [-1.46, -0.29] | dProbeV +1.49 [+0.68, +2.40] | Tshare 95.77 ± 1.71
+ogm@1      valMAE 90.63 ± 1.47 | k_T 0.578 | dMAE +1.88 [-0.10, +4.23] pHolm 1.000 MDE 3.72 | dCorr -0.47 [-1.20, +0.17] | dAcc2 -0.32 [-1.31, +0.66] | dProbeV +1.55 [+0.05, +2.99] | Tshare 94.64 ± 2.39
+ogm@3      valMAE 91.50 ± 1.38 | k_T 0.271 | dMAE +1.62 [-1.02, +4.61] pHolm 1.000 MDE 4.76 | dCorr -0.64 [-1.53, +0.37] | dAcc2 -0.57 [-1.59, +0.42] | dProbeV +1.49 [-1.00, +3.45] | Tshare 92.95 ± 2.25
+ogm-ge@0.1 valMAE 90.56 ± 1.27 | k_T 0.948 | dMAE +0.70 [-1.74, +3.34] pHolm 1.000 MDE 4.36 | dCorr +0.45 [-0.12, +1.08] | dAcc2 -0.38 [-0.89, +0.13] | dProbeV +0.60 [-1.56, +2.95] | Tshare 96.49 ± 1.64
+ogm-ge@0.3 valMAE 90.57 ± 1.38 | k_T 0.843 | dMAE +0.41 [-1.84, +2.53] pHolm 1.000 MDE 3.77 | dCorr +0.12 [-1.01, +1.14] | dAcc2 -0.52 [-1.40, +0.41] | dProbeV -0.79 [-2.67, +1.15] | Tshare 96.60 ± 1.29
+ogm-ge@1   valMAE 90.78 ± 1.80 | k_T 0.572 | dMAE +1.05 [-0.95, +2.86] pHolm 1.000 MDE 3.26 | dCorr -0.02 [-1.00, +0.82] | dAcc2 -0.20 [-0.86, +0.52] | dProbeV -0.06 [-1.83, +1.76] | Tshare 96.42 ± 1.36
+ogm-ge@3   valMAE 91.78 ± 2.49 | k_T 0.263 | dMAE +1.77 [-0.82, +4.49] pHolm 1.000 MDE 4.59 | dCorr +0.14 [-0.83, +0.95] | dAcc2 -0.26 [-1.05, +0.47] | dProbeV +0.18 [-1.96, +2.38] | Tshare 94.22 ± 1.57
+mechanism (OM only, first 5 epochs): alpha -> mean k / path ratio per modality
+   0.1: text k 0.959 path 0.996±0.006  audio k 1.000 path 1.003±0.024  vision k 1.000 path 0.999±0.006
+   0.3: text k 0.879 path 0.988±0.005  audio k 1.000 path 1.003±0.023  vision k 1.000 path 1.002±0.013
+     1: text k 0.645 path 0.951±0.010  audio k 1.000 path 1.008±0.023  vision k 0.999 path 1.011±0.014
+     3: text k 0.346 path 0.891±0.019  audio k 1.000 path 1.049±0.023  vision k 0.998 path 1.070±0.027
+
+=== mosi / sgd (x100) ===  selected: ogm=ogm@0.1 ogm-ge=ogm-ge@0.1
+baseline   valMAE 90.16 ± 1.40 | MAE 94.93 ± 2.27 | Corr 66.68 ± 1.39 | Acc2 77.06 ± 1.08 | F1 77.07 ± 1.06 | Tshare 96.69 ± 1.24
+ogm@0.1    valMAE 90.51 ± 1.25 | k_T 0.950 | dMAE -0.34 [-2.06, +1.22] pHolm 1.000 MDE 2.76 | dCorr +0.84 [+0.21, +1.50] | dAcc2 +0.13 [-0.39, +0.71] | dProbeV +0.25 [-0.38, +0.85] | Tshare 96.83 ± 0.50
+ogm@0.3    valMAE 90.62 ± 1.62 | k_T 0.860 | dMAE -0.22 [-0.98, +0.41] pHolm 1.000 MDE 1.17 | dCorr +0.59 [+0.04, +1.29] | dAcc2 +0.16 [-0.38, +0.70] | dProbeV +0.81 [-0.06, +2.30] | Tshare 96.11 ± 1.20
+ogm@1      valMAE 90.97 ± 1.39 | k_T 0.610 | dMAE +1.11 [-0.39, +2.82] pHolm 1.000 MDE 2.76 | dCorr +0.81 [+0.24, +1.32] | dAcc2 +0.74 [+0.12, +1.49] | dProbeV -0.00 [-0.39, +0.31] | Tshare 95.58 ± 1.34
+ogm@3      valMAE 91.40 ± 1.43 | k_T 0.289 | dMAE +1.92 [-0.60, +4.60] pHolm 1.000 MDE 4.48 | dCorr +0.73 [-0.73, +2.09] | dAcc2 +1.17 [+0.15, +2.19] | dProbeV +0.37 [-0.98, +1.91] | Tshare 95.05 ± 1.12
+ogm-ge@0.1 valMAE 89.58 ± 1.81 | k_T 0.953 | dMAE -0.42 [-1.59, +0.93] pHolm 1.000 MDE 2.17 | dCorr +0.82 [+0.21, +1.47] | dAcc2 +0.76 [-0.07, +1.71] | dProbeV -0.55 [-1.74, +0.79] | Tshare 96.70 ± 1.00
+ogm-ge@0.3 valMAE 89.66 ± 1.57 | k_T 0.857 | dMAE -0.28 [-1.27, +0.87] pHolm 1.000 MDE 1.86 | dCorr +0.45 [+0.00, +0.94] | dAcc2 +0.29 [-0.35, +0.95] | dProbeV -0.35 [-1.72, +1.23] | Tshare 97.15 ± 0.56
+ogm-ge@1   valMAE 90.23 ± 1.32 | k_T 0.602 | dMAE +1.28 [-0.13, +2.91] pHolm 1.000 MDE 2.61 | dCorr +0.27 [-0.78, +1.11] | dAcc2 -0.04 [-0.61, +0.54] | dProbeV -0.14 [-1.54, +1.59] | Tshare 96.58 ± 0.56
+ogm-ge@3   valMAE 91.75 ± 1.22 | k_T 0.306 | dMAE +2.17 [+0.56, +3.72] pHolm 0.297 MDE 2.68 | dCorr +1.02 [+0.17, +1.78] | dAcc2 +1.14 [+0.28, +2.04] | dProbeV +0.44 [-1.19, +2.39] | Tshare 95.33 ± 1.20
+mechanism (OM only, first 5 epochs): alpha -> mean k / path ratio per modality
+   0.1: text k 0.970 path 0.976±0.002  audio k 1.000 path 1.000±0.003  vision k 1.000 path 1.000±0.002
+   0.3: text k 0.912 path 0.928±0.004  audio k 1.000 path 1.001±0.003  vision k 0.999 path 1.002±0.002
+     1: text k 0.739 path 0.782±0.011  audio k 1.000 path 1.013±0.008  vision k 0.998 path 1.020±0.007
+     3: text k 0.498 path 0.564±0.023  audio k 0.999 path 1.068±0.020  vision k 0.994 path 1.085±0.018
+
+=== synthetic-independent / adam (x100) ===  selected: ogm=ogm@0.3 ogm-ge=ogm-ge@0.3
+baseline   valMAE 78.52 ± 1.88 | MAE 81.10 ± 1.83 | Corr 59.16 ± 2.47 | Acc2 70.70 ± 0.98 | F1 70.68 ± 0.97 | Tshare 39.79 ± 4.23
+ogm@0.3    valMAE 78.45 ± 1.94 | k_T 0.926 | dMAE -0.03 [-0.23, +0.14] pHolm 0.922 MDE 0.31 | dCorr +0.07 [-0.12, +0.30] | dAcc2 +0.21 [-0.06, +0.49] | dProbeV -0.02 [-0.09, +0.03] | Tshare 40.73 ± 4.91
+ogm@1      valMAE 78.69 ± 2.18 | k_T 0.755 | dMAE +0.30 [-0.01, +0.60] pHolm 0.316 MDE 0.52 | dCorr -0.24 [-0.57, +0.11] | dAcc2 -0.08 [-0.48, +0.26] | dProbeV -0.06 [-0.15, +0.01] | Tshare 42.03 ± 6.02
+ogm@3      valMAE 79.58 ± 1.74 | k_T 0.430 | dMAE +1.05 [+0.65, +1.48] pHolm 0.012 MDE 0.70 | dCorr -1.22 [-1.90, -0.66] | dAcc2 -0.56 [-1.00, -0.17] | dProbeV -0.32 [-0.91, +0.11] | Tshare 41.47 ± 9.06
+ogm-ge@0.3 valMAE 77.08 ± 2.02 | k_T 0.926 | dMAE -1.51 [-2.01, -0.95] pHolm 0.020 MDE 0.90 | dCorr +2.03 [+1.29, +2.68] | dAcc2 +1.13 [+0.58, +1.60] | dProbeV -0.45 [-0.79, -0.16] | Tshare 41.72 ± 4.45
+ogm-ge@1   valMAE 77.22 ± 2.21 | k_T 0.758 | dMAE -1.47 [-2.07, -0.77] pHolm 0.039 MDE 1.11 | dCorr +2.01 [+1.17, +2.73] | dAcc2 +1.13 [+0.44, +1.75] | dProbeV -0.43 [-0.75, -0.19] | Tshare 42.79 ± 4.25
+ogm-ge@3   valMAE 78.06 ± 2.33 | k_T 0.418 | dMAE -0.37 [-0.86, +0.10] pHolm 0.465 MDE 0.82 | dCorr +0.65 [+0.09, +1.21] | dAcc2 +0.25 [-0.34, +0.82] | dProbeV -0.63 [-0.91, -0.36] | Tshare 46.42 ± 3.95
+mechanism (OM only, first 5 epochs): alpha -> mean k / path ratio per modality
+   0.3: text k 0.956 path 0.991±0.003  audio k 1.000 path 1.003±0.008  vision k 0.996 path 1.003±0.011
+     1: text k 0.857 path 0.967±0.008  audio k 1.000 path 1.006±0.007  vision k 0.987 path 1.007±0.010
+     3: text k 0.644 path 0.907±0.022  audio k 0.999 path 1.029±0.022  vision k 0.963 path 1.024±0.022
+
+=== synthetic-independent / sgd (x100) ===  selected: ogm=ogm@0.3 ogm-ge=ogm-ge@0.3
+baseline   valMAE 72.43 ± 2.35 | MAE 74.60 ± 2.44 | Corr 67.45 ± 2.99 | Acc2 74.44 ± 1.62 | F1 74.43 ± 1.61 | Tshare 37.38 ± 7.70
+ogm@0.3    valMAE 72.53 ± 2.34 | k_T 0.942 | dMAE +0.04 [-0.02, +0.09] pHolm 0.480 MDE 0.09 | dCorr -0.08 [-0.16, +0.00] | dAcc2 -0.07 [-0.22, +0.07] | dProbeV -0.08 [-0.20, +0.02] | Tshare 37.67 ± 7.78
+ogm@1      valMAE 72.82 ± 2.27 | k_T 0.808 | dMAE +0.34 [+0.14, +0.55] pHolm 0.098 MDE 0.34 | dCorr -0.32 [-0.57, -0.03] | dAcc2 -0.34 [-0.58, -0.12] | dProbeV -0.14 [-0.28, +0.01] | Tshare 38.76 ± 7.96
+ogm@3      valMAE 73.53 ± 2.16 | k_T 0.509 | dMAE +1.19 [+0.74, +1.64] pHolm 0.023 MDE 0.75 | dCorr -1.22 [-1.73, -0.68] | dAcc2 -0.82 [-1.20, -0.41] | dProbeV -0.37 [-0.66, -0.08] | Tshare 42.19 ± 6.00
+ogm-ge@0.3 valMAE 72.19 ± 2.47 | k_T 0.940 | dMAE -0.18 [-0.57, +0.23] pHolm 0.984 MDE 0.68 | dCorr +0.16 [-0.32, +0.69] | dAcc2 -0.15 [-0.44, +0.14] | dProbeV -0.08 [-0.26, +0.10] | Tshare 40.69 ± 5.99
+ogm-ge@1   valMAE 72.41 ± 2.35 | k_T 0.801 | dMAE +0.12 [-0.31, +0.55] pHolm 0.984 MDE 0.72 | dCorr -0.16 [-0.65, +0.36] | dAcc2 -0.40 [-0.73, -0.08] | dProbeV -0.13 [-0.32, +0.04] | Tshare 41.34 ± 5.33
+ogm-ge@3   valMAE 73.38 ± 2.16 | k_T 0.490 | dMAE +1.01 [+0.36, +1.65] pHolm 0.098 MDE 1.09 | dCorr -1.21 [-2.04, -0.38] | dAcc2 -0.84 [-1.48, -0.33] | dProbeV -0.25 [-0.51, -0.05] | Tshare 43.86 ± 5.39
+mechanism (OM only, first 5 epochs): alpha -> mean k / path ratio per modality
+   0.3: text k 0.978 path 0.973±0.005  audio k 1.000 path 0.996±0.005  vision k 0.993 path 0.991±0.006
+     1: text k 0.924 path 0.911±0.014  audio k 0.999 path 0.992±0.013  vision k 0.978 path 0.973±0.016
+     3: text k 0.785 path 0.781±0.039  audio k 0.998 path 0.998±0.031  vision k 0.939 path 0.941±0.024
+
+=== synthetic-redundant / adam (x100) ===  selected: ogm=ogm@0.3 ogm-ge=ogm-ge@0.3
+baseline   valMAE 51.86 ± 4.53 | MAE 53.99 ± 4.72 | Corr 63.19 ± 4.59 | Acc2 84.58 ± 2.11 | F1 84.53 ± 2.16 | Tshare 5.20 ± 3.85
+ogm@0.3    valMAE 52.07 ± 4.76 | k_T 0.971 | dMAE +0.19 [+0.01, +0.46] pHolm 0.773 MDE 0.39 | dCorr -0.25 [-0.56, -0.02] | dAcc2 +0.07 [-0.02, +0.21] | dProbeV +0.13 [-0.03, +0.42] | Tshare 4.93 ± 4.69
+ogm@1      valMAE 52.24 ± 4.90 | k_T 0.902 | dMAE +0.32 [+0.00, +0.73] pHolm 0.773 MDE 0.62 | dCorr -0.32 [-0.71, -0.05] | dAcc2 +0.20 [-0.03, +0.47] | dProbeV +0.33 [-0.05, +0.84] | Tshare 5.58 ± 6.15
+ogm@3      valMAE 52.68 ± 5.40 | k_T 0.723 | dMAE +0.65 [+0.05, +1.44] pHolm 0.420 MDE 1.20 | dCorr -1.26 [-2.60, -0.28] | dAcc2 +0.32 [-0.06, +0.85] | dProbeV +0.22 [-0.07, +0.57] | Tshare 5.61 ± 7.53
+ogm-ge@0.3 valMAE 51.71 ± 5.07 | k_T 0.972 | dMAE -0.00 [-0.84, +0.97] pHolm 1.000 MDE 1.55 | dCorr +0.15 [-0.71, +1.02] | dAcc2 -0.04 [-0.63, +0.69] | dProbeV +0.56 [+0.16, +1.05] | Tshare 7.64 ± 4.31
+ogm-ge@1   valMAE 52.06 ± 5.19 | k_T 0.902 | dMAE +0.42 [-0.48, +1.48] pHolm 1.000 MDE 1.69 | dCorr +0.18 [-0.76, +1.10] | dAcc2 +0.05 [-0.53, +0.68] | dProbeV +0.75 [+0.22, +1.32] | Tshare 8.47 ± 4.99
+ogm-ge@3   valMAE 53.69 ± 5.32 | k_T 0.698 | dMAE +2.25 [+1.23, +3.34] pHolm 0.023 MDE 1.76 | dCorr -0.46 [-1.26, +0.34] | dAcc2 -0.36 [-0.83, +0.11] | dProbeV +0.58 [+0.04, +1.19] | Tshare 8.05 ± 2.66
+mechanism (OM only, first 5 epochs): alpha -> mean k / path ratio per modality
+   0.3: text k 0.984 path 0.994±0.003  audio k 1.000 path 0.997±0.003  vision k 0.989 path 1.002±0.005
+     1: text k 0.943 path 0.979±0.011  audio k 1.000 path 0.995±0.009  vision k 0.966 path 1.008±0.011
+     3: text k 0.824 path 0.938±0.028  audio k 1.000 path 0.986±0.016  vision k 0.910 path 1.029±0.028
+
+=== synthetic-redundant / sgd (x100) ===  selected: ogm=ogm@0.3 ogm-ge=ogm-ge@0.3
+baseline   valMAE 50.48 ± 4.25 | MAE 52.59 ± 3.79 | Corr 64.32 ± 2.96 | Acc2 84.80 ± 1.57 | F1 84.74 ± 1.61 | Tshare 2.87 ± 2.34
+ogm@0.3    valMAE 50.58 ± 4.32 | k_T 0.977 | dMAE +0.13 [-0.02, +0.29] pHolm 0.654 MDE 0.27 | dCorr -0.04 [-0.07, -0.01] | dAcc2 +0.10 [-0.04, +0.28] | dProbeV -0.04 [-0.14, +0.02] | Tshare 3.02 ± 2.37
+ogm@1      valMAE 51.01 ± 4.68 | k_T 0.921 | dMAE +0.58 [-0.02, +1.37] pHolm 0.654 MDE 1.18 | dCorr -0.28 [-0.50, -0.10] | dAcc2 +0.31 [+0.05, +0.60] | dProbeV -0.06 [-0.15, +0.00] | Tshare 4.17 ± 2.67
+ogm@3      valMAE 51.95 ± 5.52 | k_T 0.775 | dMAE +1.48 [+0.08, +3.36] pHolm 0.654 MDE 2.79 | dCorr -0.89 [-2.22, +0.24] | dAcc2 +0.24 [-0.46, +1.02] | dProbeV -0.03 [-0.13, +0.06] | Tshare 5.48 ± 6.44
+ogm-ge@0.3 valMAE 50.49 ± 3.92 | k_T 0.980 | dMAE +0.74 [-0.54, +2.08] pHolm 0.654 MDE 2.21 | dCorr +0.04 [-0.78, +0.67] | dAcc2 +0.01 [-0.97, +1.11] | dProbeV -0.07 [-0.28, +0.12] | Tshare 3.86 ± 2.28
+ogm-ge@1   valMAE 50.80 ± 4.19 | k_T 0.927 | dMAE +0.88 [-0.39, +2.08] pHolm 0.654 MDE 2.08 | dCorr +0.03 [-0.66, +0.59] | dAcc2 +0.10 [-0.63, +0.87] | dProbeV -0.06 [-0.25, +0.11] | Tshare 4.41 ± 2.28
+ogm-ge@3   valMAE 51.93 ± 5.45 | k_T 0.773 | dMAE +1.95 [+0.33, +3.77] pHolm 0.387 MDE 2.89 | dCorr -0.67 [-2.02, +0.30] | dAcc2 -0.37 [-1.11, +0.46] | dProbeV -0.13 [-0.28, +0.02] | Tshare 6.28 ± 4.90
+mechanism (OM only, first 5 epochs): alpha -> mean k / path ratio per modality
+   0.3: text k 0.991 path 0.984±0.014  audio k 1.000 path 0.995±0.006  vision k 0.988 path 0.986±0.003
+     1: text k 0.970 path 0.952±0.041  audio k 1.000 path 0.987±0.017  vision k 0.961 path 0.958±0.010
+     3: text k 0.903 path 0.885±0.087  audio k 1.000 path 0.979±0.031  vision k 0.894 path 0.893±0.029
+
+=== MOSI probes (corr x100) ===
+text    random 47.81 ± 2.49 | alone 66.50 ± 0.72 | joint adam base 67.13 ± 0.80 | joint sgd base 66.41 ± 1.10
+audio   random 24.57 ± 1.12 | alone 23.57 ± 1.20 | joint adam base 23.69 ± 0.81 | joint sgd base 24.91 ± 0.74
+vision  random 12.45 ± 4.62 | alone 12.84 ± 3.12 | joint adam base 14.07 ± 3.24 | joint sgd base 13.70 ± 2.55
+
+=== MOSI stacking (x100) ===
+T    MAE 96.05 ± 1.41 Corr 66.44 ± 0.83 weights [0.891]
+TAV  MAE 94.06 ± 1.40 Corr 66.55 ± 0.83 weights [0.834 0.362 0.4  ]
+TAV-T dMAE -1.99 [-2.49, -1.41] dCorr +0.11 [-0.20, +0.41]
+alone: {'text': ('94.15 ± 1.42', '66.44 ± 0.83'), 'audio': ('143.21 ± 2.14', '23.69 ± 1.09'), 'vision': ('143.76 ± 1.32', '12.61 ± 2.97')}
+
+=== synthetic independent: vision probe random 49.28 ± 2.26
+  adam: vision alone corr 51.22 ± 2.10, alone probe 51.15 ± 1.98, joint base probe 50.82 ± 2.21
+  sgd: vision alone corr 50.83 ± 2.08, alone probe 50.91 ± 2.11, joint base probe 50.65 ± 2.36
+
+=== synthetic redundant: vision probe random 65.84 ± 2.98
+  adam: vision alone corr 65.36 ± 2.77, alone probe 65.33 ± 2.89, joint base probe 65.47 ± 3.90
+  sgd: vision alone corr 66.09 ± 2.36, alone probe 65.87 ± 2.58, joint base probe 65.94 ± 3.18
